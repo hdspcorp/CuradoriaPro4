@@ -1,0 +1,1965 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Conversor</title>
+  <style>
+   :root{
+  /* Padrão corporativo: grafite + verde suave */
+  --bg:#0b1016;        /* fundo principal (menos azulado) */
+  --fg:#d8dee6;        /* texto principal (menos branco) */
+  --muted:#98a3b0;     /* texto secundário mais discreto */
+  --acc:#94A3B8;       /* slate-400 (cinza-azulado desaturado) */
+  --card:#0e141b;      /* cartões/espaços internos */
+  --border:#1c2733;    /* bordas discretas */
+}
+header .note{
+  display:block;              /* responsivo */
+  margin: 6px 0 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  opacity:.9
+}
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background:var(--bg); color:var(--fg); }
+    header { padding:20px 24px; border-bottom:1px solid var(--border); background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0)); position:relative; }
+    h1 { margin:0; font-size:22px; }
+    main { max-width: min(1920px, 96vw); margin:0 auto; padding:24px 32px; }
+    .grid { display:grid; gap:16px; grid-template-columns: repeat(12, 1fr); }
+.col-4 { grid-column: span 4; }
+.col-8 { grid-column: span 8; }
+.col-6 { grid-column: span 6; }
+.col-12 { grid-column: span 12; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow:0 6px 20px rgba(0,0,0,.22); }
+    .card h2 { margin:0 0 12px; font-size:18px; }
+    label { display:block; font-size:13px; color:var(--muted); margin-bottom:6px; }
+    input[type="number"], select, input[type="text"], textarea { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#121824; color:var(--fg); }
+    .btn { cursor:pointer; border:none; border-radius:12px; padding:10px 14px; background:var(--acc); color:#0b1016; font-weight:700; transition: filter .12s ease, transform .12s ease; }
+    .btn:hover { filter: brightness(1.04); transform: translateY(-0.5px); }
+    .btn:active { filter: brightness(0.98); transform: translateY(0); }
+    .btn.ghost { background:#1a2330; color:var(--fg); }
+    .btn.ghost:hover { filter: brightness(1.06); transform: translateY(-0.5px); }
+    .btn.ghost:active { filter: brightness(0.98); transform: translateY(0); }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .list { max-height:220px; overflow:auto; border:1px solid var(--border); border-radius:12px; padding:10px; background:#121824; font-size:12px; }
+    .stats { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:12px; margin-top:10px; }
+    .stat { background:#121824; border:1px solid var(--border); border-radius:12px; padding:10px; font-size:13px; color:var(--muted); }
+    .stat strong { display:block; font-size:16px; color:var(--fg); }
+    .bar { height:10px; background:#121824; border:1px solid rgba(255,255,255,.05); border-radius:999px; overflow:hidden; }
+    .bar > div { height:100%; width:0%; background:linear-gradient(90deg, #94A3B8, #CBD5E1); }
+    pre { white-space: pre-wrap; background:#121824; border:1px solid var(--border); border-radius:12px; padding:12px; font-size:12px; }
+    .downloads a { display:inline-block; margin:6px 6px 0 0; padding:8px 10px; background:#1b2430; border:1px solid var(--border); border-radius:8px; color:var(--fg); text-decoration:none; font-size:13px; box-shadow: 0 4px 10px rgba(0,0,0,.18); }
+    .pill { font-size:11px; padding:4px 8px; border:1px solid var(--border); border-radius:999px; background:#121824; color:var(--muted); }
+    small { color:var(--muted); }
+
+   /* Segmented control (modo de saída) — destaque premium */
+.seg-wrap { display:flex; gap:10px; flex-wrap:wrap; }
+.seg {
+  display:inline-flex; align-items:center; cursor:pointer; user-select:none;
+  padding:10px 14px; border-radius:14px;
+  background:#121824; border:1px solid var(--border);
+  box-shadow: 0 6px 18px rgba(0,0,0,.25);
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.seg:hover{ transform: translateY(-1px); box-shadow:0 10px 24px rgba(0,0,0,.28); }
+.seg input{ display:none; }
+.seg span{ font-size:14px; font-weight:600; color:var(--muted); letter-spacing:.2px; }
+
+.seg input:checked + span{
+  color:#0b1220;
+  background: linear-gradient(135deg, #CBD5E1 0%, #94A3B8 100%); /* slate claro → slate médio */
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
+.seg:has(input:checked){
+  border-color: #94A3B8;
+  box-shadow: 0 8px 26px rgba(148,163,184,.22), inset 0 1px 0 rgba(255,255,255,.08);
+}
+
+    .muted { color:var(--muted); font-size:12px; }
+    .dim { opacity:.6; pointer-events:none; filter:saturate(.7); }
+
+	/* ——— App Switcher: botão + menu dropdown ——— */
+.app-switcher {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  z-index: 1000;
+}
+.app-switcher__btn {
+  border: 1px solid var(--border, rgba(255,255,255,.15));
+  background: linear-gradient(135deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+  color: var(--fg, #e5e7eb);
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+  letter-spacing: .2px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  backdrop-filter: blur(6px);
+}
+.app-switcher__btn:hover { transform: translateY(-1px); }
+.app-switcher__menu {
+  position: absolute;
+  right: 0;
+  margin-top: 8px;
+  min-width: 260px;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid var(--border, rgba(255,255,255,.12));
+  background: linear-gradient(180deg, rgba(15,23,42,.98), rgba(15,23,42,.95));
+  box-shadow: 0 20px 40px rgba(0,0,0,.35);
+  display: none;
+}
+.app-switcher.open .app-switcher__menu { display: block; }
+
+.app-switcher__item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 10px; border-radius: 10px; text-decoration: none;
+  color: var(--fg, #e5e7eb);
+  border: 1px solid transparent;
+}
+.app-switcher__item small { color: var(--muted, #9aa4b2); display:block; margin-top:2px }
+.app-switcher__item:hover {
+  background: rgba(255,255,255,.04);
+  border-color: rgba(255,255,255,.08);
+}
+
+/* === Ajuda flutuante (FAB) canto inferior direito === */
+.help-fab{
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 30000;
+}
+
+.help-hint{
+  position: relative;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--acc);
+  color: #0b1016;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+.help-hint:focus{ outline: 2px solid rgba(255,255,255,.25); outline-offset: 3px; }
+
+/* Pop-up compacto, abre para CIMA */
+.help-bubble{
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 0;
+  left: auto;
+
+  /* largura confortável e limites de viewport */
+  width: min(560px, 94vw);
+  min-width: 360px;
+  max-height: min(76vh, 620px);
+  overflow: auto;
+
+  background: var(--card);
+  /* texto neutro, chamativo mas suave (opacidade) */
+  color: #d8dee6CC;
+
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+
+  box-shadow: 0 18px 40px rgba(0,0,0,.45);
+  display: none;
+  z-index: 1;
+
+  /* >>> chave para tirar o negrito herdado do .help-hint <<< */
+  font-weight: 400;
+
+  /* leitura */
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Tipografia do conteúdo interno (compacta e hierárquica) */
+/* Título e subtítulo em destaque (cor “cheia” no título) */
+.help-bubble .hb-title{
+  font-weight: 700;         /* negrito só aqui */
+  font-size: 13px;
+  letter-spacing: .2px;
+  margin: 0 0 8px 0;
+  color: var(--fg);
+}
+.help-bubble .hb-section{
+  margin: 10px 0 12px 0;
+}
+.help-bubble .hb-section .hb-sub{
+  font-weight: 600;         /* semi-negrito só no subtítulo */
+  margin-bottom: 4px;
+  color: #d8dee6E6;         /* levemente mais forte que o corpo */
+}
+
+/* Corpo do texto: sem negrito */
+.help-bubble p{ margin: 4px 0 6px 0; }
+.help-bubble ul{ margin: 6px 0 6px 16px; padding: 0; }
+.help-bubble li{ margin-bottom: 4px; }
+.help-bubble .hb-flow{
+  margin-top: 10px;
+  font-weight: 400;         /* sem negrito no rodapé */
+}
+
+/* Remove negrito de qualquer <strong>/<b> no corpo das seções */
+.help-bubble .hb-section strong,
+.help-bubble .hb-section b{
+  font-weight: 400 !important;
+}
+
+/* Exibir em hover/foco */
+.help-hint:hover .help-bubble,
+.help-hint:focus .help-bubble,
+.help-hint:focus-within .help-bubble{
+  display: block;
+}
+
+/* Mobile: posicionamento confortável */
+@media (max-width: 520px){
+  .help-fab{ right: 12px; bottom: 12px; }
+  .help-bubble{
+    right: -6px;
+    max-width: calc(100vw - 24px);
+  }
+}
+/* --- Pesquisa (UI refinada: containers separados) --- */
+.result-item{
+  padding:12px; margin-bottom:8px;
+  border:1px solid var(--border);
+  border-radius:12px; background:#0f1621;
+  cursor:pointer;
+}
+.result-item:hover{ background:#121b28; }
+.result-item strong{ color:var(--fg); }
+
+.search-toolbar { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+.search-toolbar .btn { padding:8px 12px; border-radius:10px; }
+
+/* Grupo de ações da Prévia — organização consistente */
+.preview-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.preview-actions .btn { padding:8px 12px; border-radius:10px; }
+
+/* Coluna esquerda “grudada” no topo ao rolar */
+.card.sticky { position: sticky; top: 12px; align-self: flex-start; }
+#viewPesquisa .card.sticky { max-height: calc(100vh - 120px); overflow: auto; }
+
+.status-line{
+  display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+  margin-top:8px;
+}
+/* Semáforo (status dos conectores) – agora com "bolinha" colorida */
+#driveStatus, #importStatus{
+  background: var(--surface-1);
+  color: var(--muted);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* bolinha à esquerda */
+#driveStatus::before, #importStatus::before{
+  content: '';
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: #9aa4b2; /* cinza por padrão */
+  display: inline-block;
+  flex: 0 0 10px;
+}
+
+/* estados – apenas a bolinha muda de cor */
+#driveStatus.status--idle::before, #importStatus.status--idle::before{ background: #9aa4b2; }
+#driveStatus.status--ok::before,   #importStatus.status--ok::before  { background: #16a34a; }
+#driveStatus.status--err::before,  #importStatus.status--err::before { background: #ef4444; }
+
+/* melhoria de alinhamento da barra de busca */
+.search-toolbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.search-toolbar label{ display:inline-flex; align-items:center; gap:6px; margin:0; white-space:nowrap; }
+.search-toolbar input[type="text"]{ flex:1; min-width:300px; }
+
+/* Polimento visual só na aba PESQUISA */
+#viewPesquisa .card h2{
+  display:flex; align-items:center; gap:10px;
+  font-size:20px; letter-spacing:.2px;
+  margin:0 0 12px 0; padding-bottom:8px;
+  border-bottom:1px solid var(--border);
+}
+#viewPesquisa .card{
+  backdrop-filter: saturate(120%);
+}
+#searchList{ min-height: 48vh; max-height: 64vh; overflow:auto; }
+
+.preview-head{
+  display:flex; gap:10px; align-items:center; justify-content:space-between;
+  margin: 8px 0 10px 0;
+}
+.preview-title{
+  font-weight:700; font-size:14px; color:var(--fg);
+  padding:6px 10px; border:1px solid var(--border); border-radius:10px; background:#121824;
+}
+.preview-actions .btn{ padding:8px 12px; border-radius:10px; }
+
+#searchPreview{
+  min-height: 72vh; /* leitura/edição prolongada */
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #121824;
+  padding: 16px;
+  white-space: pre-wrap;
+  overflow: auto;
+  font-size: 14px;
+  line-height: 1.6;
+  letter-spacing: .1px;
+}
+#searchPreview.editing{
+  outline:2px dashed #94A3B8;
+  background:#0f172a;
+}
+
+/* realce do match */
+mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; padding:0 2px; }
+
+/* removido suporte a “tela cheia” (não utilizado) */
+  </style>
+
+  <!-- PDF e DOCX -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script> if (window['pdfjsLib']) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js'; </script>
+<script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Conversor</h1>
+	<nav class="app-switcher" aria-label="Outros aplicativos">
+  <button id="appSwitcherBtn" class="app-switcher__btn" type="button">HDSP CORP ▾</button>
+  <div id="appSwitcherMenu" class="app-switcher__menu" role="menu">
+    <a class="app-switcher__item" role="menuitem" href="https://hdspcorp.github.io/curadoriapro10/" target="_blank" rel="noopener">
+      <div>
+        <strong>Analisador</strong>
+        <small>Importa JSON e envia os grupos para avaliação</small>
+      </div>
+    </a>
+    <a class="app-switcher__item" role="menuitem" href="https://hdspcorp.github.io/poscuradoria/" target="_blank" rel="noopener">
+      <div>
+        <strong>Workspace</strong>
+        <small>Visualiza, e filtra as avaliações do agente de Curadoria</small>
+      </div>
+    </a>
+  </div>
+</nav>
+	<span class="note"><b>Dica Importante galera:</b> </span>
+	<div class="seg-wrap" id="mainTabs" style="margin-top:12px">
+  <label class="seg"><input type="radio" name="mainView" id="tabConversor" checked><span>Conversor</span></label>
+  <label class="seg"><input type="radio" name="mainView" id="tabPesquisa"><span>Pesquisa</span></label>
+</div>
+  </header>
+
+  <main>
+  <div id="viewConversor" class="grid">
+
+      <!-- CONFIG -->
+      <section class="card col-6">
+       <h2>Configuração</h2>
+
+<!-- 1) Modo de saída — “Gerar PACKS” como principal e default -->
+<label class="muted"></label>
+<div class="seg-wrap" style="margin-bottom:8px">
+  <label class="seg"><input type="radio" name="outmode" id="modePacks" checked><span>Gerar PACKS</span></label>
+  <label class="seg"><input type="radio" name="outmode" id="modeIndividual"><span>Converter para TXT (1:1)</span></label>
+</div>
+<small class="muted"></small>
+
+<!-- 2) Opções gerais -->
+<div class="row" style="margin-top:12px">
+  <!-- <label><input id="stripHtml" type="checkbox" /> Remover tags HTML de arquivos .html</label> -->
+  <label><input id="preserveOrder" type="checkbox" checked /> Preservar ordem por nome</label>
+  <!-- <label><input id="optimizeMd" type="checkbox" /> Otimizar para IA (Markdown + metadados)</label> -->
+</div>
+
+<!-- 3) Opções para PACKS -->
+<div style="margin-top:12px">
+  <label class="muted"></label>
+  <div class="row">
+    <div style="flex:1; min-width:200px">
+      <label for="packs">Número de packs</label>
+      <input id="packs" type="number" min="1" max="40" value="1" list="packsList" />
+      <datalist id="packsList"></datalist>
+    </div>
+    <div style="flex:1; min-width:200px">
+      <label for="startIndex">Iniciar numeração em</label>
+      <input id="startIndex" type="number" min="1" value="1" />
+    </div>
+    <div style="flex:1; min-width:180px">
+      <label for="ext">Extensão de saída</label>
+      <select id="ext">
+        <option value="txt" selected>.txt</option>
+        <option value="md">.md</option>
+      </select>
+    </div>
+  </div>
+
+  <div style="margin-top:10px">
+    <label for="sepPreset">Separador entre documentos</label>
+    <div class="row">
+      <select id="sepPreset" style="flex:1; min-width:220px">
+        <option value="blank2">2 linhas em branco</option>
+        <option value="dash">Linha horizontal (---)</option>
+        <option value="hash">## FIM DO DOCUMENTO ##</option>
+        <option value="none" selected>Nenhum separador</option>
+      </select>
+      <input id="sepCustom" type="text" placeholder="Personalizado (se preencher, substitui o selecionado)" style="flex:2; min-width:260px" />
+    </div>
+    <small class="muted"></small>
+  </div>
+</div>
+
+<!-- 4) Ações e Progresso -->
+<div class="row" style="margin-top:14px">
+  <button id="btnProcess" class="btn">Gerar</button>
+  <button id="btnReset" class="btn ghost">Limpar</button>
+</div>
+<div style="margin-top:12px">
+  <div class="bar"><div id="progress"></div></div>
+  <div id="status" class="pill" style="margin-top:6px">Aguardando seleção…</div>
+</div>
+      </section>
+	  
+      <!-- ARQUIVOS -->
+      <section class="card col-6">
+        <h2>Arquivos</h2>
+        <div class="row">
+          <button id="btnPickFiles" class="btn">Selecionar arquivos</button>
+          <button id="btnPickFolder" class="btn ghost">Selecionar pasta</button>
+          <span class="pill">Suporta: .txt .md .csv .json .log .html .htm .pdf .docx</span>
+        </div>
+        <input id="fileInputFiles" type="file" multiple style="display:none" accept=".txt,.md,.csv,.json,.log,.html,.htm,.pdf,.docx,.doc" />
+        <input id="fileInputDir" type="file" multiple style="display:none" webkitdirectory directory accept=".txt,.md,.csv,.json,.log,.html,.htm,.pdf,.docx,.doc" />
+        <div id="fileList" class="list" style="margin-top:12px"></div>
+        <div class="stats">
+          <div class="stat"><span>Total de arquivos</span><strong id="statFiles">0</strong></div>
+          <div class="stat"><span>Tamanho total (MB)</span><strong id="statSize">0</strong></div>
+          <div class="stat"><span>Caracteres (aprox.)</span><strong id="statChars">0</strong></div>
+          <div class="stat"><span>Tokens (≈ chars/4)</span><strong id="statTokens">0</strong></div>
+        </div>
+      </section>
+
+      <section class="card col-12">
+        <h2>Downloads</h2>
+        <div class="row" style="margin: 0 0 8px 0">
+          <button id="btnDownloadAll" class="btn ghost" disabled>Baixar todos</button>
+        </div>
+        <div id="downloads" class="downloads"></div>
+      </section>
+
+      <section class="card col-12">
+        <h2>Pré-visualização do primeiro resultado</h2>
+        <pre id="preview">(vazio)</pre>
+      </section>
+	  </div><!-- /#viewConversor -->
+
+  <!-- ===== PESQUISA (nova tela) ===== -->
+  <div id="viewPesquisa" style="display:none">
+
+    <div class="grid">
+    <!-- Coluna ESQUERDA (Resultados) -->
+    <section class="card col-4 sticky">
+      <h2>Pesquisa & Resultados</h2>
+
+        <div class="search-toolbar">
+        <input id="searchInput" type="text" placeholder="Digite para pesquisar (dinâmico)..." style="flex:2; min-width:320px" />
+        <label><input id="searchCase" type="checkbox" /> Diferenciar maiúsc./minúsc.</label>
+        <label><input id="searchWhole" type="checkbox" /> Palavra inteira</label>
+        <label title="Quando ligado, a busca ignora acentos (ex.: DÚVIDA = DUVIDA).">
+  <input id="searchDiacritics" type="checkbox" checked /> Ignorar acentos (á = a)
+</label>
+      </div>
+
+      <div class="row" style="margin-top:8px">
+        <button id="btnDriveCfg" class="btn"        type="button" title="Configurar API/Folder">Configurar Google API</button>
+        <button id="btnDrive"    class="btn ghost"  type="button">Conectar ao Google Drive</button>
+        <button id="btnPickFiles2"  class="btn"     type="button">Importar arquivos</button>
+        <button id="btnPickFolder2" class="btn ghost" type="button">Importar pasta</button>
+      </div>
+
+      <div class="status-line">
+  <span id="driveStatus"  class="pill">Drive: Desconectado</span>
+  <span id="importStatus" class="pill">Origem: Nenhum documento carregado</span>
+</div>
+
+<label class="muted" style="margin-top:8px; display:block">Documentos importados</label>
+<ul id="importedDocs" class="list"></ul>
+
+<label class="muted" style="margin-top:8px; display:block">Resultados</label>
+      <div id="searchList" class="list"></div>
+    </section>
+
+    <!-- Coluna DIREITA (Prévia) -->
+    <section class="card col-8 preview-card">
+      <h2>Prévia & Edição</h2>
+      <div class="preview-head">
+        <span class="preview-title" id="docTitle">(nenhum documento selecionado)</span>
+        <div class="preview-actions">
+  <button id="btnSaveLocal"   class="btn"        type="button" title="Salvar no arquivo original">Salvar</button>
+  <button id="btnSaveDrive"   class="btn"        type="button" title="Salvar edição no Google Drive">Salvar no Drive</button>
+  <button id="btnExportDocx"  class="btn ghost"  type="button">Exportar DOCX</button>
+  <button id="btnExportTxt"   class="btn ghost"  type="button">Exportar TXT</button>
+  <button id="btnEdit"        class="btn"        type="button">Editar</button>
+</div>
+      </div>
+      <label class="muted">Prévia (500 antes | 1000 depois do 1º match · clique no resultado para abrir)</label>
+      <div id="searchPreview" aria-label="Prévia do documento"></div>
+      <!-- Mantido oculto apenas por compatibilidade -->
+      <textarea id="editArea" rows="12" style="display:none; width:100%; margin-top:10px"
+        placeholder="Edite o conteúdo completo do documento aqui..."></textarea>
+    </section>
+  </div>
+
+</div>
+  <!-- Modal de configuração do Google Drive -->
+  <div id="driveCfg" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; align-items:center; justify-content:center;">
+    <div style="width:min(560px, 94vw); background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px;">
+      <h3 style="margin:0 0 10px">Configuração do Google Drive</h3>
+      <div class="row">
+        <input id="cfgApiKey"    type="text"  placeholder="API KEY" style="flex:1; min-width:260px" />
+        <input id="cfgClientId"  type="text"  placeholder="CLIENT ID (OAuth Web)" style="flex:1; min-width:260px" />
+      </div>
+      <div class="row" style="margin-top:10px">
+        <input id="cfgFolderId"  type="text"  placeholder="Folder ID padrão (opcional)" style="flex:1; min-width:260px" />
+      </div>
+      <div class="row" style="margin-top:12px; justify-content:flex-end">
+        <button id="cfgCancel" class="btn ghost" type="button">Cancelar</button>
+        <button id="cfgSave"   class="btn"       type="button">Salvar</button>
+      </div>
+      <small class="muted">Escopo usado: <code>drive.file</code> (criar/editar arquivos do app). Você pode trocar o Folder ID depois.</small>
+    </div>
+  </div>
+
+</main>
+
+  <!-- Ajuda flutuante (canto inferior direito) -->
+  <div class="help-fab">
+    <span class="help-hint" tabindex="0" aria-label="Ajuda: passo a passo" role="button">?
+      <div class="help-bubble" role="dialog" aria-modal="false">
+        <div class="hb-title">🧠 Passo a passo da Curadoria</div>
+
+        <div class="hb-section">
+          <div class="hb-sub">1. Conversor — Preparar os Arquivos</div>
+          <p>Use este programa para converter documentos da base da Kiara (como DOCX, PDF, RTF, etc.) para o formato .TXT.<br>
+          Isso permite padronizar os conteúdos e facilitar o envio para o Agente de Curadoria.</p>
+          <p><strong>💡 Recomendações:</strong></p>
+          <ul>
+            <li>Converta apenas os documentos realmente úteis para o treinamento ou avaliação.</li>
+            <li>Tente agrupar informações em menos arquivos, evitando centenas de arquivos pequenos.</li>
+            <li>Após a conversão, os arquivos .TXT estarão prontos para subir na Base de Dados do Agente de Curadoria.</li>
+          </ul>
+        </div>
+
+        <div class="hb-section">
+          <div class="hb-sub">2. Transmissor — Enviar as Interações para Avaliação</div>
+          <p>Neste programa você irá transmitir as interações (perguntas e respostas da Kiara) que serão avaliadas.</p>
+          <p><strong>O que você precisa informar:</strong></p>
+          <ul>
+            <li>ID do Bot de Curadoria (obrigatório)</li>
+            <li>Chave de API (<strong>⚠️ NUNCA</strong> compartilhe essa chave com terceiros ou exponha em lugares públicos)</li>
+          </ul>
+          <p><strong>Como funciona:</strong></p>
+          <p>Após preencher os dados e importar o JSON com as interações do dia, clique em <em>ENVIAR</em>.<br>
+          O Agente de Curadoria receberá os dados e dará início automático à avaliação de cada resposta da Kiara.</p>
+          <p><strong>📅 Dica:</strong> idealmente, transmita as interações do mesmo dia em que será feita a curadoria.</p>
+        </div>
+
+        <div class="hb-section">
+          <div class="hb-sub">3. Workspace — Visualizar as Avaliações</div>
+          <p>Depois que o Agente de Curadoria processar os dados, ele irá gerar um arquivo .JSON com as classificações de cada resposta da Kiara.</p>
+          <p><strong>O que você pode fazer no Workspace:</strong></p>
+          <ul>
+            <li>Importar os arquivos de retorno (.JSON).</li>
+            <li>Visualizar todas as avaliações feitas.</li>
+            <li>Filtrar por classificação: ✅ Correta · ❌ Incorreta · ⚠️ Falta de Documentação.</li>
+          </ul>
+          <p>🔎 Com os filtros, você consegue revisar rapidamente onde a IA foi bem e onde precisa de ajustes na base.</p>
+        </div>
+
+        <div class="hb-flow">✅ Fluxo ideal de uso — ➡️ Conversor → Transmissor → Workspace</div>
+      </div>
+    </span>
+  </div>
+
+  <script>
+  const els = {
+  btnPickFiles: document.getElementById('btnPickFiles'),
+  btnPickFolder: document.getElementById('btnPickFolder'),
+  fileInputFiles: document.getElementById('fileInputFiles'),
+  fileInputDir: document.getElementById('fileInputDir'),
+  fileList: document.getElementById('fileList'),
+  statFiles: document.getElementById('statFiles'),
+  statSize: document.getElementById('statSize'),
+  statChars: document.getElementById('statChars'),
+  statTokens: document.getElementById('statTokens'),
+  packs: document.getElementById('packs'),
+  startIndex: document.getElementById('startIndex'),
+  ext: document.getElementById('ext'),
+  /* stripHtml: document.getElementById('stripHtml'), */   // comentado, mantido
+  preserveOrder: document.getElementById('preserveOrder'),
+  sepPreset: document.getElementById('sepPreset'),
+  sepCustom: document.getElementById('sepCustom'),
+  /* optimizeMd: document.getElementById('optimizeMd'), */ // comentado, mantido
+  btnProcess: document.getElementById('btnProcess'),
+  btnReset: document.getElementById('btnReset'),
+  progress: document.getElementById('progress'),
+  status: document.getElementById('status'),
+  downloads: document.getElementById('downloads'),
+  preview: document.getElementById('preview'),
+  btnDownloadAll: document.getElementById('btnDownloadAll'),
+  modePacks: document.getElementById('modePacks'),
+  modeIndividual: document.getElementById('modeIndividual'),
+  // Tabs/views
+tabConversor: document.getElementById('tabConversor'),
+tabPesquisa: document.getElementById('tabPesquisa'),
+viewConversor: document.getElementById('viewConversor'),
+viewPesquisa: document.getElementById('viewPesquisa'),
+// Pesquisa
+searchInput: document.getElementById('searchInput'),
+searchCase: document.getElementById('searchCase'),
+searchWhole: document.getElementById('searchWhole'),
+searchDiacritics: document.getElementById('searchDiacritics'),
+searchList: document.getElementById('searchList'),
+searchPreview: document.getElementById('searchPreview'),
+btnDrive: document.getElementById('btnDrive'),
+// Import na Pesquisa
+btnPickFiles2: document.getElementById('btnPickFiles2'),
+btnPickFolder2: document.getElementById('btnPickFolder2'),
+// Preview/edição + status
+docTitle: document.getElementById('docTitle'),
+btnEdit: document.getElementById('btnEdit'),
+btnSaveLocal: document.getElementById('btnSaveLocal'),
+btnSaveDrive: document.getElementById('btnSaveDrive'),
+btnExportTxt: document.getElementById('btnExportTxt'),
+btnExportDocx: document.getElementById('btnExportDocx'),
+editArea: document.getElementById('editArea'),
+driveStatus: document.getElementById('driveStatus'),
+importStatus: document.getElementById('importStatus'),
+};
+function setStatus(el, state, text){
+  if(!el) return;
+  el.textContent = text || el.textContent;
+  el.classList.remove('status--idle','status--ok','status--err');
+  el.classList.add(state ? `status--${state}` : 'status--idle');
+}
+
+const hasClient = (typeof DRIVE_CLIENT_ID !== 'undefined' && DRIVE_CLIENT_ID);
+if (els.driveStatus){
+  setStatus(els.driveStatus, 'idle', hasClient ? 'Drive: API pronta para conectar' : 'Drive: Desconectado');
+}
+if (els.importStatus){
+  setStatus(els.importStatus, 'idle', 'Origem: Nenhum documento carregado');
+}
+function prettyError(err){
+  try{
+    if (err && err.result && err.result.error){
+      const er = err.result.error;
+      const code = er.code || '';
+      const status = er.status || '';
+      const msg = er.message || JSON.stringify(er);
+      return `${code} ${status} - ${msg}`;
+    }
+    if (err && err.error){
+      return (typeof err.error === 'string') ? err.error : JSON.stringify(err.error);
+    }
+    return (typeof err === 'string') ? err : JSON.stringify(err);
+  }catch(_){ return String(err); }
+}
+
+  (function fillPacksDatalist(){
+    const dl = document.getElementById('packsList');
+    for(let i=1;i<=40;i++){
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      dl.appendChild(opt);
+    }
+  })();
+
+  let selectedFiles = [];
+  let generatedPacksData = [];
+  const ALLOWED_EXT = ['.txt','.md','.csv','.json','.log','.html','.htm','.pdf','.docx','.doc'];
+
+  function fmtMB(bytes){ return (bytes/1024/1024).toFixed(2); }
+  function approxTokens(chars){ return Math.round(chars/4); }
+  function baseName(fileName){ const i = fileName.lastIndexOf('.'); return i>0 ? fileName.slice(0,i) : fileName; }
+  function hasAllowedExt(name){ const lower = name.toLowerCase(); return ALLOWED_EXT.some(ext => lower.endsWith(ext)); }
+  
+  // ===== Pesquisa: estado =====
+let indexedDocs = [];         // [{ name, text, fold, map }]
+let isIndexing = false;
+let searchTimer = null;
+let selectedDoc = null;       // { name, text } do item clicado
+let previewFull = false;      // estado do modo tela cheia
+let editing = false;          // se a área de edição está ativa
+
+// lista compacta dos documentos importados
+function renderImportedDocs(){
+  const ul = document.getElementById('importedDocs');
+  if(!ul) return;
+  ul.innerHTML = '';
+  if(!selectedFiles.length){
+    ul.innerHTML = '<li class="muted">(nenhum documento)</li>';
+    return;
+  }
+  for(const f of selectedFiles){
+    const li = document.createElement('li');
+    li.textContent = f.name || '(sem nome)';
+    ul.appendChild(li);
+  }
+}
+
+// quando os inputs do Conversor receberem arquivos, refletir na lista da Pesquisa
+els.fileInputFiles?.addEventListener('change', renderImportedDocs);
+els.fileInputDir?.addEventListener('change', renderImportedDocs);
+
+// normaliza CRLF e comprime linhas em branco (igual ao conversor)
+// Remove diacríticos (áàâãä → a; éê → e; ç → c, etc.)
+function fold(s){
+  return String(s||'').normalize('NFD').replace(/\p{M}+/gu, '');
+}
+// Gera também um mapa de posições: índice no texto “foldado” → índice no original
+function foldWithMap(s){
+  s = String(s||'');
+  let norm = '', map = [];
+  for(let i=0;i<s.length;i++){
+    const ch = s[i];
+    const f = ch.normalize('NFD').replace(/\p{M}+/gu,''); // 1:1 para PT-BR
+    for(let k=0;k<f.length;k++){ norm += f[k]; map.push(i); }
+  }
+  return { norm, map };
+}
+
+function buildRegex(q, {caseSensitive, wholeWord}){
+  const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pat = wholeWord ? `\\b${esc}\\b` : esc;
+  return new RegExp(pat, caseSensitive ? 'g' : 'gi');
+}
+function buildRegex(q, {caseSensitive, wholeWord}){
+  const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pat = wholeWord ? `\\b${esc}\\b` : esc;
+  return new RegExp(pat, caseSensitive ? 'g' : 'gi');
+}
+// recorta 500 antes / 1000 depois do primeiro match
+function sliceWithContext(text, idx, len){
+  const start = Math.max(0, idx - 500);
+  const end   = Math.min(text.length, idx + len + 1000);
+  const left  = text.slice(start, idx);
+  const mid   = text.slice(idx, idx+len);
+  const right = text.slice(idx+len, end);
+  const prefix = (start>0 ? '…' : '');
+  const suffix = (end<text.length ? '…' : '');
+  return { left, mid, right, prefix, suffix };
+}
+
+  // ===== Preservar quebras de linha ao extrair texto de HTML =====
+  function htmlToTextPreserveBreaks(html){
+    const doc = new DOMParser().parseFromString(html || '', 'text/html');
+    const body = doc.body || doc.createElement('body');
+
+    // <br> -> \n
+    body.querySelectorAll('br').forEach(br => br.replaceWith(doc.createTextNode('\n')));
+
+    // Elementos de bloco recebem quebras antes/depois
+    const blockSel = 'p,div,li,section,article,header,footer,pre,blockquote,hr,h1,h2,h3,h4,h5,h6,table,tr,ul,ol,dd,dt,figure,figcaption';
+    body.querySelectorAll(blockSel).forEach(el=>{
+      el.insertAdjacentText('beforebegin','\n');
+      el.insertAdjacentText('afterend','\n');
+    });
+
+    let text = body.textContent || '';
+
+    // Normaliza \r\n -> \n
+    text = text.replace(/\r\n?/g, '\n');
+
+    // Reduz excesso de linhas em branco consecutivas para no máx. 2
+    text = text.replace(/\n{3,}/g, '\n\n');
+
+    // NÃO dar trim global
+    return text.replace(/[ \t]+\n/g, '\n').replace(/[ \t]+$/,'');
+  }
+
+  // ===== Utilitários opcionais (mantidos no código, mas **não usados** porque a opção foi comentada) =====
+  function slugify(s){
+    return (s || '')
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g,'')
+      .replace(/[^a-zA-Z0-9]+/g,'-')
+      .replace(/^-+|-+$/g,'')
+      .toLowerCase();
+  }
+  function detectTagsFromName(name){
+    const tags = [];
+    const n = (name || '').toLowerCase();
+    if(n.includes('ngfiscal')) tags.push('NGFiscal');
+    if(n.includes('ngcontabil')) tags.push('NGContabil');
+    if(n.includes('ngfolha') || n.includes('hcm')) tags.push('HCM');
+    if(n.includes('keevocenter') || n.includes('keevo center')) tags.push('KeevoCenter');
+    return tags.length ? tags : ['documento'];
+  }
+  function addFrontMatter({docId, title, source, tags}){
+    const created = new Date().toISOString().slice(0,10);
+    const yaml =
+`---
+doc_id: "${docId}"
+title: "${title}"
+source: "${source}"
+created_at: "${created}"
+tags: [${tags.map(t=>`"${t}"`).join(', ')}]
+---
+
+`;
+    return yaml;
+  }
+  function promoteSectionHeadings(raw){
+    const SECTION_HINTS = [
+      'introdução','quando utilizar','quando usar','como utilizar','como usar',
+      'passo a passo','procedimento','processo','campos','parâmetros','parametros',
+      'observações','observacoes','requisitos','perguntas e respostas','faq','exemplos',
+      'conferência','conferencia','relatórios','relatorios','erros comuns','solução de problemas'
+    ];
+    const lines = raw.split('\n');
+    return lines.map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || /^#{1,6}\s/.test(trimmed) || /^(-|\*|\•|\d+\.)\s/.test(trimmed) || trimmed.length > 80) {
+        return line;
+      }
+      const lower = trimmed.toLowerCase();
+      if (SECTION_HINTS.includes(lower)) return (line.startsWith('## ') ? line : `## ${trimmed}`);
+      if (/:$/.test(trimmed) && trimmed.length <= 60) {
+        const noColon = trimmed.replace(/:$/,'');
+        return (line.startsWith('## ') ? line : `## ${noColon}`);
+      }
+      return line;
+    }).join('\n');
+  }
+  function normalizeBullets(raw){
+    return raw
+      .replace(/^\s*[•\*]\s+/gm, '- ')
+      .replace(/^\s*-\s{2,}/gm, '- ');
+  }
+
+  function ensureLf(raw){ return raw.replace(/\r\n?/g, '\n'); }
+  function enforceMaxBlankLines(raw){ return raw.replace(/\n{3,}/g, '\n\n'); }
+  
+  /** Reverte o padrão do Drive que troca ":" por "_" quando há espaços em volta.
+ * Ex.: "Notas_ Como" -> "Notas: Como"
+ * Mantém underscores legítimos (sem espaços em volta). */
+function restoreColons(name){
+  return String(name).replace(/\s_\s/g, ': ');
+}
+
+  // Ordenação natural com prefixos numéricos
+  function splitNumericPrefix(n){
+    const base = n.replace(/^.*[\\/]/,'');
+    const m = base.match(/^\s*(\d+(?:\.\d+)*)(?=\s|[-_.])/);
+    if(!m) return null;
+    return m[1].split('.').map(v=>parseInt(v,10));
+  }
+  function cmpByVersionedName(aName, bName){
+    const aNums = splitNumericPrefix(aName);
+    const bNums = splitNumericPrefix(bName);
+    if(aNums && bNums){
+      const len = Math.max(aNums.length, bNums.length);
+      for(let i=0;i<len;i++){
+        const av = (i < aNums.length) ? aNums[i] : 0;
+        const bv = (i < bNums.length) ? bNums[i] : 0;
+        if(av !== bv) return av - bv;
+      }
+      return aName.localeCompare(bName, undefined, {sensitivity:'base', numeric:true});
+    }
+    if(aNums) return -1;
+    if(bNums) return 1;
+    return aName.localeCompare(bName, undefined, {sensitivity:'base', numeric:true});
+  }
+
+  // ========= UI base =========
+  els.btnPickFiles.addEventListener('click', ()=> els.fileInputFiles.click());
+  els.btnPickFolder.addEventListener('click', ()=> els.fileInputDir.click());
+  els.fileInputFiles.addEventListener('change', handleSelection);
+  els.fileInputDir.addEventListener('change', handleSelection);
+
+function handleSelection(){
+  const files = Array.from(this.files || []);
+  const filtered = files.filter(f => hasAllowedExt(f.name));
+  selectedFiles = mergeFileLists(selectedFiles, filtered);
+  renderFileList();
+  indexedDocs = []; // força reindexar na próxima busca (Pesquisa)
+
+  // STATUS: origem manual
+    if(els.importStatus){
+    const n = selectedFiles.length;
+    if(n){
+      setStatus(els.importStatus, 'ok', `Origem: importação manual (${n} arquivo${n>1?'s':''})`);
+    } else {
+      setStatus(els.importStatus, 'idle', 'Origem: Nenhum documento carregado');
+    }
+  }
+}
+  function mergeFileLists(prev, add){
+    const map = new Map();
+    for(const f of prev){ map.set((f.webkitRelativePath||f.name)+':'+f.size, f); }
+    for(const f of add){ map.set((f.webkitRelativePath||f.name)+':'+f.size, f); }
+    return Array.from(map.values());
+  }
+  function renderFileList(){
+    els.fileList.innerHTML = '';
+    if(!selectedFiles.length){
+      els.statFiles.textContent = '0'; els.statSize.textContent = '0'; els.statChars.textContent = '0'; els.statTokens.textContent = '0';
+      els.status.textContent = 'Aguardando seleção…';
+      return;
+    }
+    let totalSize = 0;
+    const ul = document.createElement('ul'); ul.style.listStyle = 'none'; ul.style.padding = 0; ul.style.margin = 0;
+    selectedFiles.sort((a,b)=> cmpByVersionedName(a.name, b.name));
+    selectedFiles.forEach((f,idx)=>{ totalSize += f.size; if(idx<300){ const li=document.createElement('li'); li.textContent=(f.webkitRelativePath||f.name); ul.appendChild(li);} });
+    if(selectedFiles.length>300){ const li=document.createElement('li'); li.textContent=`… (+${selectedFiles.length-300} mais)`; ul.appendChild(li);}    
+    els.fileList.appendChild(ul);
+    els.statFiles.textContent = String(selectedFiles.length);
+    els.statSize.textContent = fmtMB(totalSize);
+    els.statChars.textContent = '—';
+    els.statTokens.textContent = '—';
+    els.status.textContent = 'Pronto para processar';
+  }
+
+  // ========= Extractors =========
+  async function extractPdfText(file){
+    const arrayBuffer = await file.arrayBuffer();
+    if(!window.pdfjsLib){ throw new Error('PDF.js não carregado'); }
+    const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+    let text = '';
+    for(let p=1; p<=pdf.numPages; p++){
+      const page = await pdf.getPage(p);
+      const tc = await page.getTextContent();
+      const pageText = tc.items.map(i => (i.str || '')).join(' ');
+      text += pageText + '\n\n';
+    }
+    return text;
+  }
+  async function extractDocxText(file){
+    const arrayBuffer = await file.arrayBuffer();
+    if(!window.mammoth){ throw new Error('Mammoth (DOCX) não carregado'); }
+    const result = await window.mammoth.convertToHtml({arrayBuffer});
+    const html = result.value || '';
+    return htmlToTextPreserveBreaks(html);
+  }
+  async function readFileAsText(file){
+    const lower = file.name.toLowerCase();
+    if(lower.endsWith('.pdf')){ return await extractPdfText(file); }
+    if(lower.endsWith('.docx')){ return await extractDocxText(file); }
+    if(lower.endsWith('.doc')){ throw new Error('Arquivo .DOC não suportado no navegador: '+file.name+' — converta para .DOCX/.PDF/.TXT.'); }
+
+    const raw = await file.text();
+
+    if(/\.(html?|HTML?)$/.test(file.name)){
+      /* if(els.stripHtml.checked){  // comentado
+        return htmlToTextPreserveBreaks(raw);
+      } else { */
+        return raw;
+      /* } */
+    }
+    return raw; // TXT/MD/CSV/JSON/LOG
+  }
+
+  // ========= Helpers =========
+  function getSeparator(){
+    const custom = (els.sepCustom.value || '').trim();
+    if(custom) return decodeEscapes(custom);
+    switch(els.sepPreset.value){
+      case 'dash': return '\n\n---\n\n';
+      case 'hash': return '\n\n## FIM DO DOCUMENTO ##\n\n';
+      case 'none': return '';
+      case 'blank2':
+      default: return '\n\n';
+    }
+  }
+  function decodeEscapes(s){ return s.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '\r'); }
+  function assignDocsToPacksSequential(docs, k){
+    const lengths = docs.map(d=>d.len);
+    const total = lengths.reduce((a,b)=>a+b,0);
+    const target = Math.ceil(total / k);
+    const packs = Array.from({length:k}, () => ({docs:[], len:0}));
+    let idx = 0;
+    for(const d of docs){
+      if(idx < k-1 && (packs[idx].len + d.len) > target){ idx++; }
+      packs[idx].docs.push(d);
+      packs[idx].len += d.len;
+    }
+    return packs;
+  }
+  function download(filename, text){
+    const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.style.display='none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
+  }
+  function createDownloadLink(fname, text){
+    const a = document.createElement('a');
+    a.href = '#';
+    a.textContent = fname;
+    a.addEventListener('click', (ev)=>{ ev.preventDefault(); download(fname, text); });
+    els.downloads.appendChild(a);
+    generatedPacksData.push({ fname, text });
+  }
+
+  // ========= “Baixar todos” & Reset =========
+ els.btnDownloadAll.addEventListener('click', async () => {
+  if(!generatedPacksData.length){ alert('Nada para baixar.'); return; }
+
+  els.btnDownloadAll.disabled = true;
+  const originalText = els.btnDownloadAll.textContent;
+
+  try {
+    if ('showDirectoryPicker' in window) {
+      // Chrome/Edge: escolher pasta e salvar arquivos diretamente
+      els.btnDownloadAll.textContent = 'Escolhendo pasta…';
+      const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+
+      els.btnDownloadAll.textContent = 'Salvando na pasta…';
+      for (const p of generatedPacksData) {
+        const fileHandle = await dirHandle.getFileHandle(p.fname, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(p.text);
+        await writable.close();
+      }
+      alert('Arquivos salvos com sucesso na pasta escolhida.');
+    } else {
+      // Outros navegadores: baixa todos via downloads tradicionais
+      els.btnDownloadAll.textContent = 'Baixando todos…';
+      for (const p of generatedPacksData) {
+        download(p.fname, p.text);
+        await new Promise(r=>setTimeout(r, 120));
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Não foi possível salvar/baixar: ' + (err.message || err));
+  } finally {
+    els.btnDownloadAll.disabled = false;
+    els.btnDownloadAll.textContent = originalText;
+  }
+});
+
+  els.btnReset.addEventListener('click', ()=>{
+  els.fileInputFiles.value = '';
+  els.fileInputDir.value = '';
+  selectedFiles = [];
+  generatedPacksData = [];
+  els.downloads.innerHTML = '';
+  els.preview.textContent = '(vazio)';
+  els.progress.style.width = '0%';
+  els.btnDownloadAll.disabled = true;
+  renderFileList();
+
+  // Pesquisa: limpar painel
+  indexedDocs = [];
+  selectedDoc = null;
+  els.searchInput.value = '';
+  els.searchList.innerHTML = '';
+  els.searchPreview.innerHTML = '';
+  els.docTitle.textContent = '(nenhum documento selecionado)';
+
+    // STATUS: origem
+  if(els.importStatus) setStatus(els.importStatus, 'idle', 'Origem: Nenhum documento carregado');
+});
+
+  // ========= Modo de saída: habilitar/desabilitar campos =========
+  function syncModeUI(){
+    const individual = els.modeIndividual.checked;
+    // packs-only
+    els.packs.disabled    = individual;
+    els.sepPreset.disabled= individual;
+    els.sepCustom.disabled= individual;
+    els.startIndex.disabled = individual;
+    // extensão: no modo individual, forçamos .txt
+    els.ext.disabled      = individual;
+    if (individual) { els.ext.value = 'txt'; }
+    // cosmetics
+    [els.packs, els.sepPreset, els.sepCustom, els.ext, els.startIndex].forEach(el=>{
+      el.closest('div')?.classList.toggle('dim', individual && (el===els.packs || el===els.sepPreset || el===els.sepCustom || el===els.startIndex));
+    });
+  }
+  els.modePacks.addEventListener('change', syncModeUI);
+  els.modeIndividual.addEventListener('change', syncModeUI);
+  syncModeUI(); // default já entra em PACKS
+  // —— alternância de telas
+function showView(which){
+  els.viewConversor.style.display = (which==='conv' ? '' : 'none');
+  els.viewPesquisa.style.display  = (which==='pesq' ? '' : 'none');
+}
+els.tabConversor?.addEventListener('change', ()=> showView('conv'));
+els.tabPesquisa?.addEventListener('change', ()=> showView('pesq'));
+showView('conv');
+
+// ===== Normalização para indexar (corrige quebra ao "indexar") =====
+function normalizeForSearch(raw){
+  let t = String(raw || '');
+  // normaliza quebras, NBSP e tabs
+  t = t.replace(/\r\n?/g, '\n').replace(/\u00A0/g,' ').replace(/\t/g,'  ');
+  // tira espaços à direita
+  t = t.split('\n').map(l => l.replace(/\s+$/,'')).join('\n');
+  // limita blocos de linhas em branco a no máx. 2
+  const out = [];
+  let blank = 0;
+  for(const line of t.split('\n')){
+    if(line.trim()===''){ blank++; if(blank>2) continue; } else { blank = 0; }
+    out.push(line);
+  }
+  return out.join('\n');
+}
+
+// ===== Pesquisa: indexação leve dos arquivos selecionados =====
+async function ensureSearchIndex(){
+  if(indexedDocs.length || isIndexing) return;
+  if(!selectedFiles.length){ els.status.textContent = 'Selecione arquivos para pesquisar.'; return; }
+  isIndexing = true;
+  els.status.textContent = 'Indexando para pesquisa…';
+  els.progress.style.width = '3%';
+
+  indexedDocs = [];
+  let processed = 0;
+  for(const file of selectedFiles){
+    try{
+      const raw  = await readFileAsText(file);
+      const text = normalizeForSearch(raw||'');
+      const { norm, map } = foldWithMap(text);
+      indexedDocs.push({ name: file.name, text, fold: norm, map });
+    }catch(e){
+      console.warn('Falha ao indexar', file.name, e);
+      setStatus(els.importStatus, 'err', 'Origem: erro ao indexar '+ (file?.name||'arquivo'));
+    }
+    processed++;
+    if (processed % 10 === 0 || processed === selectedFiles.length) {
+      const pct = 3 + Math.round((processed/selectedFiles.length)*30);
+      els.progress.style.width = pct + '%';
+      await new Promise(r=>setTimeout(r,0));
+    }
+  }
+  els.status.textContent = 'Indexação pronta';
+  isIndexing = false;
+}
+
+// ===== Pesquisa: renderização de resultados (dinâmica) =====
+function renderSearchResults(query, opts){
+  const ignoreAccents = !!opts.ignoreAccents;
+  const q = ignoreAccents ? fold(query) : query;
+  const re = buildRegex(q, opts);
+
+  const frag = document.createDocumentFragment();
+  let totalMatches = 0;
+
+  indexedDocs.forEach(doc=>{
+    const hay = ignoreAccents ? (doc.fold || '') : (doc.text || '');
+    const mAll = [...hay.matchAll(re)];
+    const count = mAll.length;
+    if(!count) return;
+    totalMatches += count;
+
+    const m = mAll[0];
+
+    // Índices no ORIGINAL (se a busca foi em “fold”)
+    let first = m.index;
+    let len   = m[0].length;
+    if(ignoreAccents && doc.map){
+      const start = doc.map[first] ?? 0;
+      const end   = doc.map[first + len - 1] ?? start;
+      first = start;
+      len   = (end - start + 1);
+    }
+
+    const ctx = sliceWithContext(doc.text, first, len);
+    const div = document.createElement('div');
+    div.className='result-item';
+    div.innerHTML = `
+      <strong>${doc.name}</strong><br>
+      <small class="muted">Ocorrências: ${count}</small>
+      <div style="margin-top:6px">${ctx.prefix}${escapeHtml(ctx.left)}<mark>${escapeHtml(ctx.mid)}</mark>${escapeHtml(ctx.right)}${ctx.suffix}</div>
+    `;
+
+    div.addEventListener('click', ()=>{
+      selectedDoc = { name: doc.name, text: doc.text };
+      els.docTitle.textContent = doc.name;
+
+      const left  = escapeHtml(doc.text.slice(0, first));
+      const mid   = escapeHtml(doc.text.slice(first, first+len));
+      const right = escapeHtml(doc.text.slice(first+len));
+      els.searchPreview.innerHTML = `${left}<mark>${mid}</mark>${right}`;
+
+      editing = false;
+      els.searchPreview.contentEditable = 'false';
+      els.searchPreview.classList.remove('editing');
+      els.btnEdit.textContent = 'Editar';
+    });
+
+    frag.appendChild(div);
+  });
+
+  els.searchList.innerHTML = '';
+  els.searchList.appendChild(frag);
+  if(!totalMatches){
+    els.searchList.innerHTML = '<div class="muted">Nenhum resultado encontrado.</div>';
+    els.searchPreview.innerHTML = '';
+  }
+}
+
+function runDynamicSearch(){
+  const q = (els.searchInput?.value||'').trim();
+  if(!q){
+  els.searchList.innerHTML='';
+  els.searchPreview.innerHTML='';
+  els.docTitle.textContent = '(nenhum documento selecionado)';
+  selectedDoc = null;
+  return;
+}
+  renderSearchResults(q, {
+    caseSensitive: !!els.searchCase?.checked,
+    wholeWord: !!els.searchWhole?.checked,
+    ignoreAccents: !!els.searchDiacritics?.checked
+  });
+}
+
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
+// ===== Pesquisa: eventos (dinâmica + atalhos + Drive stub) =====
+els.searchInput?.addEventListener('input', ()=>{
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(async ()=>{
+    await ensureSearchIndex();
+    runDynamicSearch();
+  }, 250);
+});
+
+// (REMOVIDO) Botão “Tela cheia” — não utilizado
+
+// ========= Botões: Salvar, Exportar TXT, Exportar DOCX =========
+async function saveLocalOriginal(){
+  try{
+    if(!selectedDoc){ alert('Selecione um resultado primeiro.'); return; }
+    const defaultName = selectedDoc.name || 'documento.txt';
+    const text = selectedDoc.text || '';
+
+    // Preferência: sobrescrever com File System Access API (quando disponível)
+    if ('showSaveFilePicker' in window){
+      const handle = await window.showSaveFilePicker({
+        suggestedName: defaultName,
+        types: [{ description: 'Texto', accept: { 'text/plain': ['.txt','.md','.log','.csv','.json','.html'] } }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(text);
+      await writable.close();
+      alert('Arquivo salvo com sucesso.');
+    } else {
+      // Fallback: download tradicional (o usuário escolhe a pasta)
+      download(defaultName, text);
+    }
+
+    // Extra: se Drive estiver configurado, também salva no Drive automaticamente
+    if (DRIVE_API_KEY && DRIVE_CLIENT_ID){
+      try{
+        const fname = (defaultName || 'documento').replace(/\.[^.]+$/, '') + '.txt';
+        await upsertTextFileOnDrive(fname, text);
+        setStatus(els.driveStatus, 'ok', 'Drive: documento atualizado');
+      }catch(errDrive){
+        console.warn('Falha ao salvar no Drive (após salvar local):', errDrive);
+        setStatus(els.driveStatus, 'err', 'Drive: falha ao salvar automaticamente');
+      }
+    }
+  }catch(e){
+    if(e && e.name === 'AbortError') return; // usuário cancelou
+    console.error(e);
+    alert('Não foi possível salvar: ' + (e.message || e));
+  }
+}
+
+function exportTxt(){
+  if(!selectedDoc){ alert('Selecione um resultado primeiro.'); return; }
+  const fname = (selectedDoc.name || 'documento').replace(/\.[^.]+$/, '') + '.txt';
+  const text  = selectedDoc.text || '';
+  download(fname, text);
+}
+
+async function exportDocx(){
+  if(!selectedDoc){ alert('Selecione um resultado primeiro.'); return; }
+  if(!window.docx){ alert('Biblioteca DOCX não carregada.'); return; }
+
+  const { Document, Packer, Paragraph } = docx;
+
+  // Texto -> parágrafos (um parágrafo por linha)
+  const lines = (selectedDoc.text || '').split('\n');
+  const paragraphs = lines.map(l => new Paragraph(l || ' '));
+
+  const doc = new Document({ sections: [{ properties: {}, children: paragraphs }] });
+  const blob = await Packer.toBlob(doc);
+  const fname = (selectedDoc.name || 'documento').replace(/\.[^.]+$/, '') + '.docx';
+
+  // Baixa o arquivo
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = fname; a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
+}
+
+// Liga os botões novos
+els.btnSaveLocal?.addEventListener('click', saveLocalOriginal);
+els.btnExportTxt?.addEventListener('click', exportTxt);
+els.btnExportDocx?.addEventListener('click', exportDocx);
+
+// Editar documento (toggle inline na PRÉVIA)
+els.btnEdit?.addEventListener('click', ()=>{
+  if(!selectedDoc){ alert('Selecione um resultado primeiro.'); return; }
+  editing = !editing;
+
+  if(editing){
+    // Mostra o TEXTO puro (sem <mark>) e habilita edição inline
+    els.searchPreview.textContent = selectedDoc.text || '';
+    els.searchPreview.contentEditable = 'true';
+    els.searchPreview.classList.add('editing');
+    els.btnEdit.textContent = 'Editar (ativo)';
+  }else{
+    // Salva edição feita na prévia
+    const updated = els.searchPreview.textContent || '';
+    selectedDoc.text = updated;
+
+    // Atualiza o índice de busca para refletir a edição
+    const idx = indexedDocs.findIndex(d => d.name === selectedDoc.name);
+    if(idx >= 0) indexedDocs[idx].text = updated;
+
+    // Volta a visualização normal
+    els.searchPreview.contentEditable = 'false';
+    els.searchPreview.classList.remove('editing');
+    els.btnEdit.textContent = 'Editar';
+  }
+});
+
+// Exportar documento (download .txt com o nome original)
+els.btnExport?.addEventListener('click', ()=>{
+  if(!selectedDoc){ alert('Selecione um resultado primeiro.'); return; }
+  const fname = selectedDoc.name.replace(/\.[^.]+$/, '') + '.txt';
+  download(fname, selectedDoc.text);
+});
+// Carrega gapi client e obtém token via Google Identity Services (GIS)
+async function ensureGapiSignedIn(){
+  return new Promise((resolve, reject)=>{
+    loadGapi(async ()=>{
+      try{
+        const g = window.gapi;
+        await new Promise(r=>g.load('client', r));
+        await g.client.init({ apiKey: DRIVE_API_KEY, discoveryDocs: [DRIVE_DISCOVERY] });
+
+        // Carregar GIS
+        await new Promise((res, rej)=>{
+          if(window.google?.accounts?.oauth2) return res();
+          const s = document.createElement('script');
+          s.src = 'https://accounts.google.com/gsi/client';
+          s.async = true; s.onload = res; s.onerror = ()=>rej(new Error('Falha ao carregar Google Identity Services'));
+          document.head.appendChild(s);
+        });
+
+        // Solicita token (escopo drive.file)
+        const tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: DRIVE_CLIENT_ID,
+          scope: DRIVE_SCOPE,
+          prompt: '' // silencioso se já concedido
+        });
+
+        const accessToken = await new Promise((res, rej)=>{
+          tokenClient.callback = (resp) => (resp && resp.access_token) ? res(resp.access_token) : rej(resp?.error || 'Token ausente');
+          tokenClient.requestAccessToken({ prompt: '' });
+        });
+
+        g.client.setToken({ access_token: accessToken });
+        resolve(g);
+      }catch(e){ reject(e); }
+    });
+  });
+}
+
+async function upsertTextFileOnDrive(name, content){
+  const g = await ensureGapiSignedIn();
+  // 1) tenta achar um arquivo com o mesmo nome (e opcionalmente na mesma pasta)
+  let q = `name = '${name.replace(/'/g, "\\'")}' and trashed = false`;
+  if(DRIVE_FOLDER_ID) q += ` and '${DRIVE_FOLDER_ID}' in parents`;
+  const found = await g.client.drive.files.list({ q, fields: 'files(id,name)' });
+  const metadata = {
+    name,
+    mimeType: 'text/plain',
+    ...(DRIVE_FOLDER_ID ? { parents: [DRIVE_FOLDER_ID] } : {})
+  };
+  const boundary = '-------314159265358979323846';
+  const delimiter = `\r\n--${boundary}\r\n`;
+  const closeDelim = `\r\n--${boundary}--`;
+  const body =
+    delimiter +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    JSON.stringify(metadata) + delimiter +
+    'Content-Type: text/plain; charset=UTF-8\r\n\r\n' +
+    content + closeDelim;
+
+  if(found.result.files && found.result.files.length){
+    const fileId = found.result.files[0].id;
+    return g.client.request({
+      path: `/upload/drive/v3/files/${fileId}`,
+      method: 'PATCH',
+      params: { uploadType: 'multipart' },
+      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body
+    });
+  }else{
+    return g.client.request({
+      path: '/upload/drive/v3/files',
+      method: 'POST',
+      params: { uploadType: 'multipart' },
+      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body
+    });
+  }
+}
+
+els.btnSaveDrive?.addEventListener('click', async ()=>{
+  try{
+    if(!selectedDoc){ alert('Selecione um resultado primeiro.'); return; }
+    if(!DRIVE_API_KEY || !DRIVE_CLIENT_ID){
+      alert('Configure API Key e Client ID (botão “Configurar Google API”).');
+      return;
+    }
+    const fname = (selectedDoc.name || 'documento').replace(/\.[^.]+$/, '') + '.txt';
+    await upsertTextFileOnDrive(fname, selectedDoc.text || '');
+    alert('Documento salvo no Google Drive.');
+  }catch(e){
+    console.error(e);
+    alert('Falha ao salvar no Drive: ' + (e.result?.error?.message || e.message || e));
+  }
+});
+
+// Importar na aba Pesquisa reaproveitando os inputs do Conversor
+els.btnPickFiles2?.addEventListener('click', ()=> els.fileInputFiles?.click());
+els.btnPickFolder2?.addEventListener('click', ()=> els.fileInputDir?.click());
+
+// Conectar ao Google Drive e abrir Picker (importa arquivos/pastas selecionados)
+els.btnDrive?.addEventListener('click', async ()=>{
+  const timeout = (ms,msg)=> new Promise((_,rej)=> setTimeout(()=>rej(new Error(msg)), ms));
+  try{
+    if(!DRIVE_API_KEY || !DRIVE_CLIENT_ID){
+      openDriveCfg?.();
+      setStatus(els.driveStatus, 'err', 'Drive: informe API Key e Client ID');
+      return;
+    }
+
+    setStatus(els.driveStatus, 'idle', 'Drive: conectando…');
+    const g = await ensureGapiSignedIn();
+    setStatus(els.driveStatus, 'ok', 'Drive: conectado');
+
+    // Carrega o módulo do Picker
+    await Promise.race([
+      new Promise(r=>g.load('picker', r)),
+      timeout(12000,'Timeout carregando Google Picker')
+    ]);
+
+    const token = g.client.getToken()?.access_token || '';
+    const view = new google.picker.DocsView(google.picker.ViewId.DOCS)
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(true);
+
+    const picker = new google.picker.PickerBuilder()
+      .setOAuthToken(token)
+      .setDeveloperKey(DRIVE_API_KEY)
+      .setOrigin(window.location.origin)
+      .addView(view)
+      .setTitle('Selecione arquivos / pastas')
+      .setCallback(async (data)=>{
+        if(data.action !== google.picker.Action.PICKED){
+          // Apenas fechou o picker — mantém “Conectado”
+          setStatus(els.driveStatus, 'ok', 'Drive: conectado');
+          return;
+        }
+
+        try{
+          setStatus(els.importStatus, 'idle', 'Origem: importando do Google Drive…');
+
+          const docs = data.docs || [];
+          let imported = 0;
+
+          async function importFileById(fileId){
+            // Metadados para decidir export (Google Docs) ou download direto
+            const meta = await g.client.drive.files.get({
+              fileId, fields: 'id,name,mimeType'
+            });
+            const m = meta.result || {};
+
+            // Conteúdo: exporta Google Docs como texto, ou baixa o arquivo
+            let blob;
+            if(m.mimeType && m.mimeType.startsWith('application/vnd.google-apps.')){
+              const res = await g.client.drive.files.export({
+                fileId: m.id, mimeType: 'text/plain'
+              });
+              const txt = res.body || '';
+              blob = new Blob([txt], { type: 'text/plain' });
+            }else{
+              const res = await g.client.drive.files.get({ fileId: m.id, alt: 'media' });
+              const b = (typeof res.body === 'string') ? res.body : (res.result || '');
+              blob = new Blob([b], { type: 'application/octet-stream' });
+            }
+
+            // Filtra extensões quando NÃO for Google Doc nativo
+            if(!(m.mimeType && m.mimeType.startsWith('application/vnd.google-apps.'))){
+              if(!hasAllowedExt(m.name)) return; // ignora não suportados
+            }
+
+            const restoredName = restoreColons(m.name || 'arquivo.txt');
+            const file = new File([blob], restoredName, { type: blob.type || 'application/octet-stream' });
+            selectedFiles = mergeFileLists(selectedFiles, [file]);
+            imported++;
+          }
+
+          for(const d of docs){
+            const isFolder =
+              (d.mimeType === 'application/vnd.google-apps.folder') ||
+              (d.type === 'folder');
+
+            if(isFolder){
+              // Lista apenas nível imediato da pasta
+              const list = await g.client.drive.files.list({
+                q: `'${d.id}' in parents and trashed = false`,
+                fields: 'files(id,name,mimeType)',
+                pageSize: 1000
+              });
+              const children = list.result?.files || [];
+              for(const f of children){
+                if((f.mimeType && f.mimeType.startsWith('application/vnd.google-apps.')) || hasAllowedExt(f.name)){
+                  await importFileById(f.id);
+                }
+              }
+            }else{
+              await importFileById(d.id);
+            }
+          }
+
+          renderFileList();
+          renderImportedDocs?.();
+          indexedDocs = []; // força reindexar na busca
+
+          setStatus(
+            els.importStatus,
+            imported ? 'ok' : 'err',
+            imported ? `Origem: ${imported} documento(s) importado(s) do Drive` : 'Origem: nenhum arquivo compatível'
+          );
+          alert('Arquivos do Drive adicionados.');
+        }catch(e){
+          console.error(e);
+          setStatus(els.importStatus, 'err', 'Origem: falha ao importar do Drive');
+          alert('Erro ao importar do Drive: ' + (e.result?.error?.message || e.message || e));
+        }
+      })
+      .build();
+
+    picker.setVisible(true);
+
+  }catch(e){
+    console.error(e);
+    setStatus(els.driveStatus, 'err', 'Drive: ' + (e.result?.error?.message || e.message || e));
+    alert('Erro ao conectar ao Google Drive: ' + (e.result?.error?.message || e.message || e));
+  }
+});
+// Ctrl/Cmd + K foca a busca e troca para a aba Pesquisa (se você criou tabs)
+document.addEventListener('keydown', (e)=>{
+  if((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='k'){
+    e.preventDefault();
+    els.searchInput?.focus();
+  }
+});
+// === Configuração do Drive (API Key, Client ID, Folder) ===
+const elCfg  = document.getElementById('driveCfg');
+const inKey  = document.getElementById('cfgApiKey');
+const inCid  = document.getElementById('cfgClientId');
+const inFld  = document.getElementById('cfgFolderId');
+const btCfg  = document.getElementById('btnDriveCfg');
+const btCfgS = document.getElementById('cfgSave');
+const btCfgC = document.getElementById('cfgCancel');
+
+function openDriveCfg(){
+  inKey.value = DRIVE_API_KEY;
+  inCid.value = DRIVE_CLIENT_ID;
+  inFld.value = DRIVE_FOLDER_ID;
+  elCfg.style.display = 'flex';
+}
+function closeDriveCfg(){ elCfg.style.display = 'none'; }
+
+btCfg?.addEventListener('click', openDriveCfg);
+btCfgC?.addEventListener('click', closeDriveCfg);
+btCfgS?.addEventListener('click', ()=>{
+  DRIVE_API_KEY   = inKey.value.trim();
+  DRIVE_CLIENT_ID = inCid.value.trim();
+  DRIVE_FOLDER_ID = inFld.value.trim();
+  localStorage.setItem('drive_api_key',   DRIVE_API_KEY);
+  localStorage.setItem('drive_client_id', DRIVE_CLIENT_ID);
+  localStorage.setItem('drive_folder_id', DRIVE_FOLDER_ID);
+  closeDriveCfg();
+  alert('Configuração salva. Agora use “Conectar ao Google Drive”.');
+});
+
+// Botão “Conectar ao Google Drive” — também importa da pasta configurada
+els.btnDrive?.addEventListener('click', async ()=>{
+  try{
+    if(!DRIVE_API_KEY || !DRIVE_CLIENT_ID){
+      openDriveCfg?.();
+      setStatus(els.driveStatus, 'err', 'Drive: informe API Key e Client ID');
+      return;
+    }
+    setStatus(els.driveStatus, 'idle', 'Drive: conectando…');
+    const g = await ensureGapiSignedIn();
+    setStatus(els.driveStatus, 'ok', 'Drive: conectado');
+
+    if(!DRIVE_FOLDER_ID){
+      setStatus(els.importStatus, 'err', 'Origem: defina um Folder ID na configuração');
+      openDriveCfg?.();
+      return;
+    }
+
+    setStatus(els.importStatus, 'idle', 'Origem: consultando pasta do Drive…');
+    const list = await g.client.drive.files.list({
+      q: `'${DRIVE_FOLDER_ID}' in parents and trashed = false`,
+      fields: 'files(id,name,mimeType)',
+      pageSize: 1000
+    });
+
+    const all = (list.result?.files || []).filter(f => hasAllowedExt(f.name));
+    if(!all.length){
+      setStatus(els.importStatus, 'err', 'Origem: nenhum arquivo compatível na pasta');
+      return;
+    }
+
+    let ok = 0;
+    for(const f of all){
+      try{
+        const resp = await g.client.drive.files.get({ fileId: f.id, alt: 'media' });
+        const text = typeof resp.body === 'string' ? resp.body : (resp.result || '');
+        const file = new File([text], f.name, { type: 'text/plain' });
+        selectedFiles.push(file);
+        ok++;
+      }catch(e){
+        console.warn('Falha ao baixar do Drive:', f.name, e);
+      }
+    }
+    renderImportedDocs();
+    setStatus(els.importStatus, ok ? 'ok' : 'err',
+      ok ? `Origem: ${ok} documento(s) importado(s) do Drive` : 'Origem: falha ao importar arquivos');
+  }catch(e){
+    console.error(e);
+    setStatus(els.driveStatus, 'err', 'Drive: ' + prettyError(e));
+  }
+});
+
+// Botão “Conectar ao Google Drive (beta)” — com feedback e erros tratados
+els.btnDrive?.addEventListener('click', async ()=>{
+  const timeout = (ms,msg)=> new Promise((_,rej)=> setTimeout(()=>rej(new Error(msg)), ms));
+  try{
+    if(!DRIVE_API_KEY || !DRIVE_CLIENT_ID){
+      openDriveCfg?.();
+      setStatus(els.driveStatus, 'idle', 'Drive: informe API Key e Client ID');
+      return;
+    }
+
+    setStatus(els.driveStatus, 'idle', 'Drive: carregando Google APIs…');
+    await new Promise((res,rej)=>{ try{ loadGapi(res); } catch(e){ rej(e); } });
+
+    // Autentica via GIS e prepara gapi client
+    setStatus(els.driveStatus, 'idle', 'Drive: autenticando…');
+    const g = await ensureGapiSignedIn();
+
+    // Carrega Picker
+    setStatus(els.driveStatus, 'idle', 'Drive: abrindo seletor…');
+    await Promise.race([
+      new Promise(r=>g.load('picker', r)),
+      timeout(12000,'Timeout carregando picker')
+    ]);
+
+    const token = g.client.getToken()?.access_token || '';
+    const view = new google.picker.DocsView(google.picker.ViewId.DOCS)
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(true);
+
+    const picker = new google.picker.PickerBuilder()
+      .setOAuthToken(token)
+      .setDeveloperKey(DRIVE_API_KEY)
+      .setOrigin(window.location.origin)
+      .addView(view)
+      .setTitle('Selecione arquivos / pastas')
+      .setCallback(async (data)=>{
+        if(data.action !== google.picker.Action.PICKED){
+          setStatus(els.driveStatus, 'ok', 'Drive: Conectado');
+          return;
+        }
+
+        const files = data.docs || [];
+        for(const f of files){
+          try{
+            const meta = await g.client.drive.files.get({ fileId: f.id, fields: 'id,name,mimeType' });
+            const m = meta.result;
+
+            let blob;
+            if(m.mimeType.startsWith('application/vnd.google-apps.')){
+              const res = await g.client.drive.files.export({ fileId: m.id, mimeType: 'text/plain' });
+              const txt = res.body || '';
+              blob = new Blob([txt], { type: 'text/plain' });
+            }else{
+              const res = await g.client.drive.files.get({ fileId: m.id, alt: 'media' });
+              const b = res.body;
+              blob = new Blob([b]);
+            }
+
+            const file = new File([blob], m.name, { type: blob.type || 'application/octet-stream' });
+            selectedFiles = mergeFileLists(selectedFiles, [file]);
+          }catch(e){ console.warn('Drive get error', e); }
+        }
+
+        renderFileList();
+        indexedDocs = []; // força reindexar
+                if(els.importStatus){
+          const n = selectedFiles.length;
+          setStatus(els.importStatus, 'ok', `Origem: Google Drive (${n} arquivo${n>1?'s':''})`);
+        }
+        setStatus(els.driveStatus, 'ok', 'Drive: Conectado');
+        alert('Arquivos do Drive adicionados.');
+      })
+      .build();
+
+    picker.setVisible(true);
+
+  }catch(e){
+    console.error(e);
+    setStatus(els.driveStatus, 'err', 'Drive: erro ao conectar');
+    alert('Erro ao conectar ao Google Drive: ' + prettyError(e));
+  }
+});
+
+  // ========= PROCESSAR =========
+  els.btnProcess.addEventListener('click', async () => {
+    if(!selectedFiles.length){ alert('Selecione arquivos ou uma pasta.'); return; }
+    const individual = els.modeIndividual.checked;
+    const k = Math.max(1, Math.min(40, parseInt(els.packs.value,10) || 1));
+    const startAt = Math.max(1, parseInt(els.startIndex.value,10) || 1);
+
+    els.status.textContent = 'Lendo arquivos…';
+    els.progress.style.width = '3%';
+    generatedPacksData = [];
+
+    const docs = [];
+    let processed = 0, charTotal = 0, errors=[];
+
+    for(const file of selectedFiles){
+      try{
+        let contentRaw = await readFileAsText(file);
+
+        // SEM trim global — preserva quebras/ espaços originais
+        let content = contentRaw || '';
+        content = ensureLf(content);
+        content = enforceMaxBlankLines(content);
+
+        const base = baseName(file.name);
+const title = restoreColons(base);
+const h1 = `# ${title}`;
+
+        /* if (els.optimizeMd?.checked) { // comentado
+          let md = content;
+          md = normalizeBullets(md);
+          md = promoteSectionHeadings(md);
+          const docId = slugify(base);
+          const tags = detectTagsFromName(base);
+          const yaml = addFrontMatter({docId, title, source:file.name, tags});
+          content = `${yaml}${h1}\n\n${md}`;
+        } else { */
+          // Envolver no formato de PACK com tags legíveis pelo GPT
+const body = String(content).replace(/^\n+/, ''); // remove linhas vazias iniciais, se houver
+content =
+`[INICIO DO DOCUMENTO]
+[NOME DO DOCUMENTO] ${h1} [/NOME DO DOCUMENTO]
+[CONTEUDO]
+${body}
+[/CONTEUDO]
+[FIM DO DOCUMENTO]
+
+`;
+        /* } */
+
+        const len = content.length; 
+        charTotal += len;
+        docs.push({ name:file.name, content, len });
+      }catch(e){ errors.push(`${file.name}: ${e.message}`); }
+      processed++;
+      if (processed % 10 === 0 || processed === selectedFiles.length) {
+        const pctRead = Math.round((processed / selectedFiles.length) * 70); // 0–70%
+        els.progress.style.width = pctRead + '%';
+        els.status.textContent = `Lendo arquivos… (${processed}/${selectedFiles.length})`;
+        await new Promise(r=>setTimeout(r, 0));
+      }
+    }
+
+    els.statChars.textContent = String(charTotal);
+    els.statTokens.textContent = String(approxTokens(charTotal));
+
+    if(els.preserveOrder.checked){
+      docs.sort((a,b)=> cmpByVersionedName(a.name, b.name));
+    }
+
+    // ========== MODO INDIVIDUAL (.txt para cada arquivo) ==========
+    if (individual) {
+      els.status.textContent = 'Gerando arquivos individuais…';
+      els.progress.style.width = '85%';
+
+      els.downloads.innerHTML = '';
+      let firstPreview = '';
+      const ext = 'txt'; // fixo no individual
+
+const baseProgress = 70;
+docs.forEach((d, i) => {
+  const text = d.content;
+// restaura ":" de nomes vindos do Drive (apenas quando era " _ ")
+const rawBase = d.name.replace(/\.[^.]+$/, '');
+const fixedBase = restoreColons(rawBase);
+const fname = fixedBase + '.' + ext;
+createDownloadLink(fname, text);
+
+        const pct = baseProgress + Math.round(((i+1) / docs.length) * 30);
+        els.progress.style.width = pct + '%';
+
+        if (i===0) {
+          firstPreview = text.slice(0, 3000) + (text.length>3000 ? '\n… (cortado)' : '');
+        }
+      });
+
+      els.btnDownloadAll.disabled = generatedPacksData.length === 0;
+      els.preview.textContent = firstPreview || '(vazio)';
+      els.progress.style.width = '100%';
+      els.status.textContent = `Pronto! ${docs.length} arquivos convertidos.`;
+
+      if(errors.length){
+        const pre = document.createElement('pre');
+        pre.textContent = 'Arquivos com erro (considere converter .DOC para .DOCX/PDF):\n' + errors.join('\n');
+        els.downloads.appendChild(pre);
+      }
+      return; // encerra aqui no modo individual
+    }
+
+    // ========== MODO PACKS ==========
+    els.status.textContent = 'Distribuindo documentos…';
+    els.progress.style.width = '70%';
+
+    const packs = assignDocsToPacksSequential(docs, k);
+
+    els.downloads.innerHTML = '';
+    const forceMd = false; // opção “Otimizar para IA” removida da UI
+    const ext = forceMd ? 'md' : els.ext.value;
+    const sep = forceMd ? '\n\n---\n\n' : getSeparator();
+
+    let firstPreview = '';
+
+    const baseProgress = 70;
+    packs.forEach((pk, i) => {
+      const header = "";
+      const text = pk.docs.map(d=>d.content).join(sep);
+      const num = String(startAt + i).padStart(2,'0'); // inicia a partir de X
+      const fname = `base_de_dados_${num}.${ext}`;
+      createDownloadLink(fname, text);
+
+      const pct = baseProgress + Math.round(((i+1) / packs.length) * 30);
+      els.progress.style.width = pct + '%';
+
+      if(i===0){
+        firstPreview = text.slice(0, 3000) + (text.length>3000 ? '\n… (cortado)' : '');
+      }
+    });
+
+    els.btnDownloadAll.disabled = generatedPacksData.length === 0;
+    els.preview.textContent = firstPreview || '(vazio)';
+    els.progress.style.width = '100%';
+    els.status.textContent = `Pronto! ${packs.length} packs gerados.`;
+
+    if(errors.length){
+      const pre = document.createElement('pre');
+      pre.textContent = 'Arquivos com erro (considere converter .DOC para .DOCX/PDF):\n' + errors.join('\n');
+      els.downloads.appendChild(pre);
+    }
+  });
+  </script>
+  <!-- Google API (Drive + Picker) — carrega sob demanda -->
+<script>
+  let DRIVE_API_KEY   = localStorage.getItem('drive_api_key')   || '';
+  let DRIVE_CLIENT_ID = localStorage.getItem('drive_client_id') || '';
+  let DRIVE_FOLDER_ID = localStorage.getItem('drive_folder_id') || '';
+  const DRIVE_SCOPE   = 'https://www.googleapis.com/auth/drive.file';
+  const DRIVE_DISCOVERY = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+
+  let gapiLoading = null;
+function loadGapi(callback){
+  if (window.gapi) { callback(); return; }
+  if (gapiLoading) { gapiLoading.then(callback); return; }
+
+  gapiLoading = new Promise((resolve, reject)=>{
+    const s = document.createElement('script');
+    s.src = 'https://apis.google.com/js/api.js';
+    s.onload = resolve;
+    s.onerror = ()=> reject(new Error('Falha ao carregar gapi (api.js)'));
+    document.head.appendChild(s);
+  });
+
+  gapiLoading.then(callback).catch((e)=>{
+    console.error(e);
+    alert('Google API não carregou: ' + (e.message || e));
+  });
+}
+</script>
+  <script>
+(function(){
+  const wrap  = document.querySelector('.app-switcher');
+  const btn   = document.getElementById('appSwitcherBtn');
+  const menu  = document.getElementById('appSwitcherMenu');
+
+  if (!wrap || !btn || !menu) return;
+
+  function toggle(open){
+    wrap.classList.toggle('open', open ?? !wrap.classList.contains('open'));
+  }
+
+  btn.addEventListener('click', (e)=>{ e.stopPropagation(); toggle(); });
+
+  document.addEventListener('click', (e)=>{
+    if (!wrap.contains(e.target)) toggle(false);
+  });
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape') toggle(false);
+  });
+})();
+</script>
+
+<script>
+  (function(){
+    const hint = document.querySelector('.help-hint');
+    if(!hint) return;
+    document.addEventListener('click', (e)=>{
+      if(!hint.contains(e.target)){
+        // remove o foco do ícone, ocultando o pop-up (por CSS)
+        hint.blur?.();
+      }
+    });
+  })();
+</script>
+</body>
+</html>
