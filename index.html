@@ -1373,17 +1373,17 @@ async function ensureGapiSignedIn(){
           document.head.appendChild(s);
         });
 
-        // Solicita token (escopo drive.file)
-        const tokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: DRIVE_CLIENT_ID,
-          scope: DRIVE_SCOPE,
-          prompt: '' // silencioso se já concedido
-        });
+        // Solicita token (com escopos atualizados)
+const tokenClient = google.accounts.oauth2.initTokenClient({
+  client_id: DRIVE_CLIENT_ID,
+  scope: DRIVE_SCOPE,
+  prompt: 'consent' // força consentimento se o escopo mudou (ex.: drive.readonly)
+});
 
-        const accessToken = await new Promise((res, rej)=>{
-          tokenClient.callback = (resp) => (resp && resp.access_token) ? res(resp.access_token) : rej(resp?.error || 'Token ausente');
-          tokenClient.requestAccessToken({ prompt: '' });
-        });
+const accessToken = await new Promise((res, rej)=>{
+  tokenClient.callback = (resp) => (resp && resp.access_token) ? res(resp.access_token) : rej(resp?.error || 'Token ausente');
+  tokenClient.requestAccessToken({ prompt: 'consent' });
+});
 
         g.client.setToken({ access_token: accessToken });
         resolve(g);
@@ -1547,9 +1547,13 @@ els.btnDrive?.addEventListener('click', async ()=>{
             }
 
             const restoredName = restoreColons(m.name || 'arquivo.txt');
-            const file = new File([blob], restoredName, { type: blob.type || 'application/octet-stream' });
-            selectedFiles = mergeFileLists(selectedFiles, [file]);
-            imported++;
+// Se o conteúdo veio como TEXTO (Google Docs exportado ou .DOC convertido), usar extensão .txt
+const isTextExport = (m.mimeType && m.mimeType.startsWith('application/vnd.google-apps.')) || m.mimeType === 'application/msword';
+const finalName = isTextExport ? (baseName(restoredName) + '.txt') : restoredName;
+
+const file = new File([blob], finalName, { type: blob.type || 'application/octet-stream' });
+selectedFiles = mergeFileLists(selectedFiles, [file]);
+imported++;
           }
 
           for(const d of docs){
@@ -1927,7 +1931,7 @@ createDownloadLink(fname, text);
   let DRIVE_API_KEY   = localStorage.getItem('drive_api_key')   || '';
   let DRIVE_CLIENT_ID = localStorage.getItem('drive_client_id') || '';
   let DRIVE_FOLDER_ID = localStorage.getItem('drive_folder_id') || '';
-  const DRIVE_SCOPE   = 'https://www.googleapis.com/auth/drive.file';
+  const DRIVE_SCOPE   = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file';
   const DRIVE_DISCOVERY = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
 
   let gapiLoading = null;
