@@ -1497,30 +1497,53 @@ els.btnDrive?.addEventListener('click', async ()=>{
           const docs = data.docs || [];
           let imported = 0;
 
-          async function importFileById(fileId){
+                    async function importFileById(fileId){
             // Metadados para decidir export (Google Docs) ou download direto
             const meta = await g.client.drive.files.get({
               fileId, fields: 'id,name,mimeType'
             });
             const m = meta.result || {};
-
-            // Conteúdo: exporta Google Docs como texto, ou baixa o arquivo
             let blob;
-            if(m.mimeType && m.mimeType.startsWith('application/vnd.google-apps.')){
+
+            if (m.mimeType && m.mimeType.startsWith('application/vnd.google-apps.')) {
+              // Google Docs nativo: exporta como texto
               const res = await g.client.drive.files.export({
                 fileId: m.id, mimeType: 'text/plain'
               });
               const txt = res.body || '';
               blob = new Blob([txt], { type: 'text/plain' });
-            }else{
-              const res = await g.client.drive.files.get({ fileId: m.id, alt: 'media' });
-              const b = (typeof res.body === 'string') ? res.body : (res.result || '');
-              blob = new Blob([b], { type: 'application/octet-stream' });
+
+            } else if (m.mimeType === 'application/msword') {
+              // .doc (Word antigo): converte temporariamente para Google Docs e exporta texto
+              const copy = await g.client.drive.files.copy({
+                fileId: m.id,
+                resource: { mimeType: 'application/vnd.google-apps.document', name: m.name }
+              });
+              try{
+                const ex = await g.client.drive.files.export({
+                  fileId: copy.result.id, mimeType: 'text/plain'
+                });
+                const txt = ex.body || '';
+                blob = new Blob([txt], { type: 'text/plain' });
+              } finally {
+                // Tenta limpar o arquivo convertido temporário, sem falhar a importação caso dê erro
+                try{ await g.client.drive.files.delete({ fileId: copy.result.id }); }catch(_){}
+              }
+
+            } else {
+              // Binários (PDF, DOCX, TXT, etc.) — baixa com fetch + Bearer para preservar bytes
+              const token = g.client.getToken()?.access_token || '';
+              const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(m.id)}?alt=media`;
+              const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` }});
+              if(!resp.ok) throw new Error('Falha ao baixar arquivo do Drive');
+              const ab = await resp.arrayBuffer();
+              const type = m.mimeType || 'application/octet-stream';
+              blob = new Blob([ab], { type });
             }
 
             // Filtra extensões quando NÃO for Google Doc nativo
             if(!(m.mimeType && m.mimeType.startsWith('application/vnd.google-apps.'))){
-              if(!hasAllowedExt(m.name)) return; // ignora não suportados
+              if(!hasAllowedExt(m.name)) return; // ignora não compatíveis
             }
 
             const restoredName = restoreColons(m.name || 'arquivo.txt');
