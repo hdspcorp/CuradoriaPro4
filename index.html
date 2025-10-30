@@ -353,6 +353,30 @@ mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; paddi
   #viewCriacao .col-8{ grid-column: span 8; }
 }
 
+/* ===== Barra do Drive no cabeçalho ===== */
+#hdrDriveBar{ display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-top:10px; }
+#hdrDriveBar .btn{ padding:10px 14px; border-radius:12px; min-width:140px; }
+#hdrDriveBar .btn.btn-drive{ box-shadow:0 6px 18px rgba(96,165,250,.25); }
+
+/* ===== Polimento só da aba PESQUISA ===== */
+#viewPesquisa .card{ box-shadow:0 10px 28px rgba(0,0,0,.28); }
+#viewPesquisa .card h2{
+  display:flex; align-items:center; justify-content:space-between;
+  font-size:20px; letter-spacing:.2px; margin:0 0 12px 0; padding-bottom:8px; border-bottom:1px solid var(--border);
+}
+#viewPesquisa .preview-title{
+  font-weight:800; font-size:15px; letter-spacing:.2px;
+  padding:8px 12px; border:1px solid var(--border); border-radius:12px; background:#121824;
+}
+#viewPesquisa .preview-actions{ display:flex; flex-direction:column; gap:8px; align-items:flex-end; }
+#viewPesquisa .preview-actions .row .btn{ padding:10px 14px; border-radius:12px; min-width:140px; }
+#viewPesquisa .preview-actions .btn.btn-drive{ background:#60a5fa; color:#0b1016; border:1px solid #334155; }
+
+/* Botões de importação manual na esquerda: mesma largura e ritmo */
+#viewPesquisa .search-toolbar .btn,
+#viewPesquisa .card.sticky .row .btn{ min-width:140px; }
+
+/* Status “bolinha” já existente – mantém */
   </style>
 
   <!-- PDF e DOCX -->
@@ -382,7 +406,14 @@ mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; paddi
   </div>
 </nav>
 	<span class="note"><b>Dica Importante galera:</b> </span>
-	<div class="seg-wrap" id="mainTabs" style="margin-top:12px">
+	<!-- Barra do Drive no cabeçalho (ordem: Conectar • Configurar • Desconectar) -->
+<div id="hdrDriveBar" aria-label="Acesso rápido ao Google Drive">
+  <button id="btnDriveConnectTop"    class="btn btn-drive" type="button" title="Conectar ao Google Drive">Conectar</button>
+  <button id="btnDriveCfgTop"        class="btn ghost"     type="button" title="Configurar API e Pasta">Configurar Google API</button>
+  <button id="btnDriveDisconnectTop" class="btn ghost"     type="button" title="Encerrar sessão">Desconectar</button>
+</div>
+
+<div class="seg-wrap" id="mainTabs" style="margin-top:12px">
   <label class="seg"><input type="radio" name="mainView" id="tabConversor" checked><span>Conversor</span></label>
   <label class="seg"><input type="radio" name="mainView" id="tabPesquisa"><span>Pesquisa</span></label>
   <label class="seg"><input type="radio" name="mainView" id="tabCriacao"><span>Criação de Documentos</span></label>
@@ -529,12 +560,7 @@ mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; paddi
   <!-- ===== PESQUISA (nova tela) ===== -->
     <div id="viewPesquisa" style="display:none">
 
-    <!-- Barra superior da Pesquisa: atalhos claros de Drive -->
-    <div class="row" id="pesqTopBar" style="margin:8px 0 12px; justify-content:flex-end">
-      <button id="btnDriveCfgTop"        class="btn"            type="button">Configurar Google API</button>
-      <button id="btnDriveConnectTop"    class="btn btn-drive"  type="button">Conectar</button>
-      <button id="btnDriveDisconnectTop" class="btn ghost"      type="button">Desconectar</button>
-    </div>
+        <!-- (barra de Drive movida para o cabeçalho) -->
 
     <div class="grid">
     <!-- Coluna ESQUERDA (Resultados) -->
@@ -759,7 +785,7 @@ function setStatus(el, state, text){
 // >>> OPCIONAL: preencha para conexão em 1 clique (sem digitar no modal)
 window.DRIVE_API_KEY   = window.DRIVE_API_KEY   || 'AIzaSyDbcMQgPkX-364aevdeziKAnb_VqD6gnjg';
 window.DRIVE_CLIENT_ID = window.DRIVE_CLIENT_ID || '824074189581-1ffkgpvpqsnl6doljveufo16c6u748t1.apps.googleusercontent.com';
-window.DRIVE_FOLDER_ID = window.DRIVE_FOLDER_ID || ''; // defina a pasta padrão aqui (ID)
+window.DRIVE_FOLDER_ID = window.DRIVE_FOLDER_ID || '1huW8TxLr8gHMErDOmVPGbWduidmtDViW'; // defina a pasta padrão aqui (ID)
 
 const hasClient = (typeof DRIVE_CLIENT_ID !== 'undefined' && DRIVE_CLIENT_ID);
 if (els.driveStatus){
@@ -1424,6 +1450,64 @@ renderBotMenu();
 renderForm('Modelo Padrão');
 
 showView('conv');
+
+/* === PESQUISA: Salvar local em .DOCX (sem Drive) — handler isolado === */
+(function rewireSaveLocalDocx(){
+  if(!els.btnSaveLocal) return;
+
+  // Remove listeners antigos clonando o botão
+  const oldBtn = els.btnSaveLocal;
+  const newBtn = oldBtn.cloneNode(true);
+  oldBtn.replaceWith(newBtn);
+  els.btnSaveLocal = newBtn;
+
+  function mdRuns(text, docx){
+    const { TextRun } = docx;
+    const out = [];
+    const re = /(\*\*[^*]+\*\*|\*[^*]+\*|__[^_]+__|_[^_]+_)/g;
+    let i=0, m;
+    while((m=re.exec(text))){
+      if(m.index>i) out.push(new TextRun({ text:text.slice(i,m.index), font:'Arial', size:20 }));
+      const raw=m[0];
+      const inner=raw.replace(/^\*\*|\*\*$|^__|__$/g,'').replace(/^\*|\*$|^_|_$/g,'');
+      const bold = raw.startsWith('**')||raw.startsWith('__');
+      const ital = (!bold)&&(raw.startsWith('*')||raw.startsWith('_'));
+      out.push(new TextRun({ text:inner, bold, italics:ital, font:'Arial', size:20 }));
+      i=re.lastIndex;
+    }
+    if(i<text.length) out.push(new TextRun({ text:text.slice(i), font:'Arial', size:20 }));
+    return out.length ? out : [ new TextRun({ text:' ', font:'Arial', size:20 }) ];
+  }
+
+  els.btnSaveLocal.addEventListener('click', async ()=>{
+    try{
+      if(!window.docx){ alert('Biblioteca DOCX não carregada.'); return; }
+      if(!window.selectedDoc){ alert('Selecione um documento primeiro.'); return; }
+
+      const { Document, Packer, Paragraph, TextRun } = docx;
+      const base = (selectedDoc.name || 'documento').replace(/\.[^.]+$/, '');
+      const text = (window.editing ? els.searchPreview.textContent : (selectedDoc.text||''));
+      const lines = String(text||'').split('\n');
+
+      const children = [
+        // Título = nome do arquivo — Arial 14 negrito
+        new Paragraph({ children:[ new TextRun({ text:(selectedDoc.name||'Documento'), bold:true, font:'Arial', size:28 }) ] }),
+        new Paragraph({ children:[ new TextRun({ text:'', font:'Arial', size:20 }) ] })
+      ];
+      // Conteúdo — Arial 10
+      lines.forEach(l => children.push(new Paragraph({ children: mdRuns(l, docx) })));
+
+      const doc = new Document({ sections:[{ properties:{}, children }] });
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement('a'), { href:url, download: `${base}.docx`, style:'display:none' });
+      document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 300);
+    }catch(e){
+      console.error(e);
+      alert('Falha ao salvar localmente: ' + (e.message||e));
+    }
+  });
+})();
 
 /* ==================== GOOGLE DRIVE – CONECTAR, DESCONECTAR E IMPORTAR ==================== */
 
