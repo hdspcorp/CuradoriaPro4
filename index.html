@@ -329,6 +329,30 @@ header .note{
 mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; padding:0 2px; }
 
 /* removido suporte a “tela cheia” (não utilizado) */
+
+/* === Criação de Documentos === */
+#viewCriacao .list li{ padding:8px 10px; border:1px solid var(--border); border-radius:10px; margin-bottom:8px; cursor:pointer; background:#0f1621; }
+#viewCriacao .list li.active{ outline:2px solid #60a5fa55; background:#111a27; }
+#viewCriacao label{ display:block; margin-bottom:4px; color:var(--acc); }
+#viewCriacao input[type="text"], #viewCriacao textarea{ width:100%; }
+#viewCriacao .grid-form{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+#viewCriacao .grid-form .col-span-2{ grid-column: span 2; }
+#viewCriacao textarea.tall{ min-height:220px; }
+#viewCriacao textarea{ min-height:120px; }
+
+/* Ações do DRIVE (azul) e alinhamento de botões */
+.btn-drive{ background:#60a5fa; color:#0b1016; }
+.btn-drive.ghost{ background:#1e293b; color:#d8dee6; border:1px solid #334155; }
+
+/* Container de ações simétrico */
+.preview-actions{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+
+/* Padroniza largura das views 4/8 (Pesquisa e Criação) */
+@media (min-width: 920px){
+  #viewCriacao .col-4{ grid-column: span 4; }
+  #viewCriacao .col-8{ grid-column: span 8; }
+}
+
   </style>
 
   <!-- PDF e DOCX -->
@@ -361,6 +385,7 @@ mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; paddi
 	<div class="seg-wrap" id="mainTabs" style="margin-top:12px">
   <label class="seg"><input type="radio" name="mainView" id="tabConversor" checked><span>Conversor</span></label>
   <label class="seg"><input type="radio" name="mainView" id="tabPesquisa"><span>Pesquisa</span></label>
+  <label class="seg"><input type="radio" name="mainView" id="tabCriacao"><span>Criação de Documentos</span></label>
 </div>
   </header>
 
@@ -461,11 +486,45 @@ mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; paddi
         <div id="downloads" class="downloads"></div>
       </section>
 
-      <section class="card col-12">
+            <section class="card col-12">
         <h2>Pré-visualização do primeiro resultado</h2>
         <pre id="preview">(vazio)</pre>
       </section>
-	  </div><!-- /#viewConversor -->
+ 	  </div><!-- /#viewConversor -->
+
+  <!-- ===== CRIAÇÃO DE DOCUMENTOS (3ª aba) ===== -->
+  <div id="viewCriacao" style="display:none">
+    <div class="grid">
+      <!-- Menu lateral de bots -->
+      <aside class="card col-4">
+        <h2>Bots</h2>
+        <ul id="botMenu" class="list" style="list-style:none; padding-left:0; margin:0"></ul>
+      </aside>
+
+      <!-- Área do formulário dinâmico -->
+            <section class="card col-8">
+        <h2>Criação de Documentos</h2>
+
+        <!-- TÍTULO do documento -->
+        <div class="row" style="margin-bottom:8px">
+          <input id="criaNome" type="text" placeholder="Título do documento (aparece no [NOME DO DOCUMENTO])" />
+        </div>
+
+        <!-- Form dinâmico do modelo selecionado -->
+        <div id="criaArea" class="grid-form">
+          <!-- O formulário do modelo selecionado é renderizado via JS.
+               **ONDE ADICIONAR CAMPOS DOS OUTROS MODELOS**:
+               procure por "const DOC_MODELS" no <script> e edite os arrays de cada bot. -->
+        </div>
+
+        <div class="row preview-actions" style="margin-top:12px">
+          <button id="btnCriarSaveDrive" class="btn btn-drive" title="Salvar no Google Drive">Salvar no Drive</button>
+          <button id="btnCriarExportDocx" class="btn ghost" title="Baixar .docx">Exportar .docx</button>
+          <button id="btnCriarExportTxt" class="btn ghost" title="Baixar .txt">Exportar .txt</button>
+        </div>
+      </section>
+    </div>
+  </div>
 
   <!-- ===== PESQUISA (nova tela) ===== -->
   <div id="viewPesquisa" style="display:none">
@@ -484,12 +543,7 @@ mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; paddi
 </label>
       </div>
 
-      <div class="row" style="margin-top:8px">
-        <button id="btnDriveCfg" class="btn"        type="button" title="Configurar API/Folder">Configurar Google API</button>
-        <button id="btnDrive"    class="btn ghost"  type="button">Conectar ao Google Drive</button>
-        <button id="btnPickFiles2"  class="btn"     type="button">Importar arquivos</button>
-        <button id="btnPickFolder2" class="btn ghost" type="button">Importar pasta</button>
-      </div>
+      <!-- (ações movidas para o container “Prévia & Edição”) -->
 
       <div class="status-line">
   <span id="driveStatus"  class="pill">Drive: Desconectado</span>
@@ -508,13 +562,34 @@ mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; paddi
       <h2>Prévia & Edição</h2>
       <div class="preview-head">
         <span class="preview-title" id="docTitle">(nenhum documento selecionado)</span>
-        <div class="preview-actions">
-  <button id="btnSaveLocal"   class="btn"        type="button" title="Salvar no arquivo original">Salvar</button>
-  <button id="btnSaveDrive"   class="btn"        type="button" title="Salvar edição no Google Drive">Salvar no Drive</button>
-  <button id="btnExportDocx"  class="btn ghost"  type="button">Exportar DOCX</button>
-  <button id="btnExportTxt"   class="btn ghost"  type="button">Exportar TXT</button>
-  <button id="btnEdit"        class="btn"        type="button">Editar</button>
+        <div class="preview-actions" aria-label="Ações da prévia">
+  <!-- Grupo: Google Drive -->
+  <div class="row" style="gap:8px">
+    <button id="btnDriveCfg"  class="btn btn-drive"        type="button" title="Configurar API/Folder">Configurar Google API</button>
+    <button id="btnDrive"     class="btn btn-drive ghost"  type="button" title="Conectar ao Google Drive">Conectar</button>
+    <button id="btnDocList"   class="btn"                  type="button" title="Listar documentos" disabled>Lista de Documentos</button>
+    <button id="btnSaveDrive" class="btn btn-drive"        type="button" title="Salvar no mesmo arquivo do Drive" disabled>Salvar no Drive</button>
+  </div>
+
+  <!-- Grupo: Edição/Salvar local -->
+  <div class="row" style="gap:8px">
+    <button id="btnEdit"      class="btn"          type="button" title="Alternar modo de edição">Editar</button>
+    <button id="btnSaveLocal" class="btn"          type="button" title="Salvar localmente (mesmo arquivo)">Salvar</button>
+  </div>
+
+  <!-- Grupo: Exportar -->
+  <div class="row" style="gap:8px">
+    <button id="btnExportTxt"  class="btn ghost"   type="button" title="Baixar TXT">Exportar TXT</button>
+    <button id="btnExportDocx" class="btn ghost"   type="button" title="Baixar DOCX">Exportar DOCX</button>
+  </div>
+
+  <!-- Grupo: Importação manual -->
+  <div class="row" style="gap:8px">
+    <button id="btnPickFiles2"  class="btn ghost"  type="button" title="Importar arquivos locais">Importar arquivos</button>
+    <button id="btnPickFolder2" class="btn ghost"  type="button" title="Importar pasta local">Importar pasta</button>
+  </div>
 </div>
+
       </div>
       <label class="muted">Prévia (500 antes | 1000 depois do 1º match · clique no resultado para abrir)</label>
       <div id="searchPreview" aria-label="Prévia do documento"></div>
@@ -525,6 +600,20 @@ mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; paddi
   </div>
 
 </div>
+  </div>
+
+<!-- Modal: Lista de Documentos -->
+<div id="docListModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; align-items:center; justify-content:center;">
+  <div style="width:min(720px, 94vw); background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px;">
+    <div class="row" style="justify-content:space-between; align-items:center">
+      <h3 style="margin:0">Lista de Documentos</h3>
+      <button id="docListClose" class="btn ghost" type="button">Fechar</button>
+    </div>
+    <div id="docList" class="list" style="margin-top:10px; max-height:60vh"></div>
+    <small class="muted">Dica: esta lista mostra documentos importados e, se o Drive estiver conectado, também da pasta configurada.</small>
+  </div>
+</div>
+
   <!-- Modal de configuração do Google Drive -->
   <div id="driveCfg" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; align-items:center; justify-content:center;">
     <div style="width:min(560px, 94vw); background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px;">
@@ -635,6 +724,7 @@ searchWhole: document.getElementById('searchWhole'),
 searchDiacritics: document.getElementById('searchDiacritics'),
 searchList: document.getElementById('searchList'),
 searchPreview: document.getElementById('searchPreview'),
+btnDriveCfg: document.getElementById('btnDriveCfg'),
 btnDrive: document.getElementById('btnDrive'),
 // Import na Pesquisa
 btnPickFiles2: document.getElementById('btnPickFiles2'),
@@ -649,6 +739,19 @@ btnExportDocx: document.getElementById('btnExportDocx'),
 editArea: document.getElementById('editArea'),
 driveStatus: document.getElementById('driveStatus'),
 importStatus: document.getElementById('importStatus'),
+btnDocList: document.getElementById('btnDocList'),
+docListModal: document.getElementById('docListModal'),
+docList: document.getElementById('docList'),
+docListClose: document.getElementById('docListClose'),
+// --- Criação de Documentos ---
+tabCriacao: document.getElementById('tabCriacao'),
+viewCriacao: document.getElementById('viewCriacao'),
+botMenu: document.getElementById('botMenu'),
+criaNome: document.getElementById('criaNome'),
+criaArea: document.getElementById('criaArea'),
+btnCriarSaveDrive: document.getElementById('btnCriarSaveDrive'),
+btnCriarExportDocx: document.getElementById('btnCriarExportDocx'),
+btnCriarExportTxt: document.getElementById('btnCriarExportTxt'),
 };
 function setStatus(el, state, text){
   if(!el) return;
@@ -656,6 +759,11 @@ function setStatus(el, state, text){
   el.classList.remove('status--idle','status--ok','status--err');
   el.classList.add(state ? `status--${state}` : 'status--idle');
 }
+
+// >>> OPCIONAL: defina aqui sua API KEY e CLIENT ID para dispensar preenchimento no modal <<<
+// ATENÇÃO: não exponha credenciais em apps públicos.
+window.DRIVE_API_KEY   = window.DRIVE_API_KEY   || 'AIzaSyDbcMQgPkX-364aevdeziKAnb_VqD6gnjg';
+window.DRIVE_CLIENT_ID = window.DRIVE_CLIENT_ID || '824074189581-1ffkgpvpqsnl6doljveufo16c6u748t1.apps.googleusercontent.com';
 
 const hasClient = (typeof DRIVE_CLIENT_ID !== 'undefined' && DRIVE_CLIENT_ID);
 if (els.driveStatus){
@@ -1102,10 +1210,361 @@ function handleSelection(){
 function showView(which){
   els.viewConversor.style.display = (which==='conv' ? '' : 'none');
   els.viewPesquisa.style.display  = (which==='pesq' ? '' : 'none');
+  els.viewCriacao.style.display   = (which==='cri'  ? '' : 'none');
 }
 els.tabConversor?.addEventListener('change', ()=> showView('conv'));
 els.tabPesquisa?.addEventListener('change', ()=> showView('pesq'));
+els.tabCriacao?.addEventListener('change',  ()=> showView('cri'));
+
+/* ====== CRIAÇÃO DE DOCUMENTOS ======
+   Onde incluir campos dos outros modelos:
+   edite o objeto DOC_MODELS abaixo (cada bot é uma lista de campos).
+*/
+const BOT_LIST = [
+  "Modelo Padrão",
+  "Fiscal","Contabil","Captura Notas","People","Keevo Center",
+  "Folha","ERP","Alpha","Holos Fiscal","Holos DP","Paralegal"
+];
+
+// UM modelo pronto (os demais ficam vazios para você preencher depois)
+const DOC_MODELS = {
+  "Modelo Padrão": [
+    // Ordem solicitada após o Título: Objetivo, Interação, Caminho, Campos, Passo a Passo, Resultado, Observações, FAQ
+    { key:"objetivo",     label:"Objetivo",                 type:"textarea" },
+    { key:"interacao",    label:"Interação com o usuário",  type:"textarea" },
+    { key:"caminho",      label:"Caminho do Menu",          type:"textarea" },
+    { key:"camposTela",   label:"Campos da Tela",           type:"textarea" },
+    { key:"passos",       label:"Passo a Passo",            type:"textarea", tall:true }, // maior
+    { key:"resultado",    label:"Resultado Esperado",       type:"textarea" },
+    { key:"observacoes",  label:"Observações",              type:"textarea" },
+    { key:"faq",          label:"FAQ",                      type:"textarea", tall:true }  // maior
+  ],
+  "Fiscal": [], "Contabil": [], "Captura Notas": [], "People": [], "Keevo Center": [],
+  "Folha": [], "ERP": [], "Alpha": [], "Holos Fiscal": [], "Holos DP": [], "Paralegal": []
+};
+
+// Monta menu lateral de bots
+function renderBotMenu(){
+  if(!els.botMenu) return;
+  els.botMenu.innerHTML = '';
+  BOT_LIST.forEach((name, idx)=>{
+    const li = document.createElement('li');
+    li.textContent = name;
+    if(idx===0) li.classList.add('active');
+    li.addEventListener('click', ()=>{
+      els.botMenu.querySelectorAll('li').forEach(x=>x.classList.remove('active'));
+      li.classList.add('active');
+      renderForm(name);
+    });
+    els.botMenu.appendChild(li);
+  });
+}
+
+// Desenha o formulário com base no modelo
+function renderForm(botName){
+  const fields = DOC_MODELS[botName] || [];
+  const a = els.criaArea;
+  a.innerHTML = '';
+  if(!fields.length){
+    a.innerHTML = '<div class="muted">Nenhum campo definido para este bot. Edite o objeto <code>DOC_MODELS</code> no script para informar os títulos.</div>';
+    return;
+  }
+  // Primeiro campo sempre é o título do documento (fica em cima, já existe input #criaNome)
+  fields.forEach(f=>{
+    const wrap = document.createElement('div');
+    const id = `cr_${f.key}`;
+    const lab = document.createElement('label');
+    lab.htmlFor = id; lab.textContent = f.label || f.key;
+    let input;
+    if(f.type === 'textarea'){
+      input = document.createElement('textarea');
+      input.id = id;
+      if(f.tall) input.classList.add('tall');
+    }else{
+      input = document.createElement('input');
+      input.type = 'text'; input.id = id;
+    }
+    const cell = document.createElement('div');
+    cell.className = (f.type==='textarea' && f.tall) ? 'col-span-2' : '';
+    cell.appendChild(lab); cell.appendChild(input);
+    a.appendChild(cell);
+  });
+}
+
+function buildDocTextFromForm(){
+  const active = els.botMenu?.querySelector('li.active');
+  const bot = active ? active.textContent : 'Modelo Padrão';
+  const title = (els.criaNome.value || '(Sem título)').trim();
+  const fields = DOC_MODELS[bot] || [];
+  const parts = [];
+  parts.push(`# ${title}\nBot: ${bot}\n`);
+  fields.forEach(f=>{
+    const v = (document.getElementById(`cr_${f.key}`)?.value || '').trim();
+    parts.push(`\n## ${f.label || f.key}\n${v}\n`);
+  });
+  return parts.join('\n');
+}
+
+els.btnCriarExportTxt?.addEventListener('click', ()=>{
+  const nameBase = (els.criaNome.value || 'documento').replace(/[\\/:*?"<>|]+/g,'_');
+  const text = buildDocTextFromForm();
+  download(`${nameBase}.txt`, text);
+});
+
+els.btnCriarExportDocx?.addEventListener('click', async ()=>{
+  if(!window.docx){ alert('Biblioteca DOCX não carregada.'); return; }
+  const nameBase = (els.criaNome.value || 'documento').replace(/[\\/:*?"<>|]+/g,'_');
+  const text = buildDocTextFromForm();
+  const { Document, Packer, Paragraph } = docx;
+  const paragraphs = text.split('\n').map(l => new Paragraph(l || ' '));
+  const doc = new Document({ sections: [{ properties: {}, children: paragraphs }] });
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `${nameBase}.docx`; a.style.display='none';
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
+});
+
+els.btnCriarSaveDrive?.addEventListener('click', async ()=>{
+  try{
+    const tryConnect = async ()=>{
+      if (typeof gapi === 'undefined' || !DRIVE_CONNECTED){
+        els.btnDrive?.click(); // dispara o fluxo existente de conexão
+        await new Promise((res,rej)=>{
+          let t=0, tm=setInterval(()=>{ if(DRIVE_CONNECTED){clearInterval(tm);res();} if((t+=1)>40){clearInterval(tm);rej(new Error('Não foi possível conectar ao Drive.'));}},250);
+        });
+      }
+    };
+
+    await tryConnect(); // conecta se necessário
+
+    const nameBase = (els.criaNome?.value || 'documento').replace(/[\\/:*?"<>|]+/g,'_');
+    const text = buildDocTextFromForm();
+    await upsertTextFileOnDrive(`${nameBase}.txt`, text);
+    alert('Documento salvo no Google Drive.');
+  }catch(e){
+    console.error(e);
+    alert('Falha ao salvar no Drive: ' + (e.result?.error?.message || e.message || e));
+  }
+});
+
+// inicializa menu e formulário
+renderBotMenu();
+renderForm('Modelo Padrão');
+
 showView('conv');
+
+/* ================== SUPORTE LISTA DE DOCUMENTOS & DRIVE ================== */
+
+// Índice de arquivos do Drive por nome (preenchido ao abrir da lista/Picker)
+const DRIVE_FILE_MAP = Object.create(null);
+let DRIVE_CONNECTED = false;
+
+const _setStatus = setStatus;
+setStatus = function(el, state, text){
+  _setStatus(el, state, text);
+  if (el === els.driveStatus){
+    DRIVE_CONNECTED = (state === 'ok');
+    updateDocListEnabled();
+    // Habilitação baseada no estado da conexão
+    if (els.btnCriarSaveDrive) els.btnCriarSaveDrive.disabled = !DRIVE_CONNECTED;
+    if (els.btnSaveDrive)      els.btnSaveDrive.disabled      = (!DRIVE_CONNECTED || !(selectedDoc && selectedDoc.driveFileId));
+  }
+};
+// estado inicial: sem conexão, desabilita Drive
+if (els.btnCriarSaveDrive) els.btnCriarSaveDrive.disabled = true;
+if (els.btnSaveDrive)      els.btnSaveDrive.disabled      = true;
+
+// Habilitar/Desabilitar “Lista de Documentos”
+function updateDocListEnabled(){
+  if (!els.btnDocList) return;
+  const hasLocal = (selectedFiles && selectedFiles.length > 0);
+  els.btnDocList.disabled = !(hasLocal || DRIVE_CONNECTED);
+}
+updateDocListEnabled();
+
+// Abrir/fechar modal de lista
+function openDocList(){ if(els.docListModal){ els.docListModal.style.display = 'flex'; renderDocList(); } }
+function closeDocList(){ if(els.docListModal){ els.docListModal.style.display = 'none'; } }
+els.docListClose?.addEventListener('click', closeDocList);
+els.btnDocList?.addEventListener('click', openDocList);
+
+// Render da lista: mostra importações locais; se Drive conectado, lista a pasta do Folder
+async function renderDocList(){
+  const cont = els.docList; if(!cont) return;
+  cont.innerHTML = '';
+
+  // 1) Documentos locais já importados
+  if (selectedFiles.length){
+    const h = document.createElement('div'); h.innerHTML = '<strong>Importados localmente</strong>'; cont.appendChild(h);
+    selectedFiles.forEach((f, idx)=>{
+      const a = document.createElement('a'); a.href='#'; a.textContent = f.name;
+      a.style.display='block'; a.style.margin='6px 0';
+      a.addEventListener('click', async (ev)=>{
+        ev.preventDefault();
+        try{
+          const text = await readFileAsText(f);
+          selectedDoc = { name: f.name, text, driveFileId: (DRIVE_FILE_MAP[f.name] || null) };
+          els.docTitle.textContent = f.name;
+          els.searchPreview.textContent = text;
+          if (els.btnSaveDrive) els.btnSaveDrive.disabled = !selectedDoc.driveFileId;
+          closeDocList();
+        }catch(e){ alert('Falha ao abrir: ' + (e.message||e)); }
+      });
+      cont.appendChild(a);
+    });
+  }
+
+  // 2) Documentos do Drive (pasta Folder ID), se conectado
+  if (DRIVE_CONNECTED && typeof gapi !== 'undefined'){
+    const g = gapi;
+    try{
+      const files = await g.client.drive.files.list({
+        q: DRIVE_FOLDER_ID ? `'${DRIVE_FOLDER_ID}' in parents and trashed=false` : 'trashed=false',
+        fields: 'files(id,name,mimeType,parents)',
+        pageSize: 1000
+      });
+      const list = files.result?.files || [];
+      if (list.length){
+        const h = document.createElement('div'); h.innerHTML = '<strong>Google Drive</strong>'; cont.appendChild(h);
+        list.forEach((f)=>{
+          const a = document.createElement('a'); a.href='#'; a.textContent = f.name;
+          a.style.display='block'; a.style.margin='6px 0';
+          a.addEventListener('click', async (ev)=>{
+            ev.preventDefault();
+            try{
+              const text = await fetchDriveFileAsText(f);
+              DRIVE_FILE_MAP[f.name] = f.id; // mapeia
+              selectedDoc = { name: f.name, text, driveFileId: f.id };
+              els.docTitle.textContent = f.name;
+              els.searchPreview.textContent = text;
+              if (els.btnSaveDrive) els.btnSaveDrive.disabled = false;
+              // adiciona também à lista de importados locais (para indexação)
+              const fileObj = new File([new Blob([text],{type:'text/plain'})], f.name, {type:'text/plain'});
+              selectedFiles = mergeFileLists(selectedFiles, [fileObj]);
+              renderImportedDocs?.();
+              closeDocList();
+            }catch(e){ alert('Falha ao abrir do Drive: ' + (e.message||e)); }
+          });
+          cont.appendChild(a);
+        });
+      }
+    }catch(e){
+      console.warn('Lista Drive:', e);
+    }
+  }
+
+  if(!cont.children.length){
+    cont.innerHTML = '<div class="muted">(nenhum documento disponível)</div>';
+  }
+}
+
+// Baixa conteúdo de um arquivo do Drive como texto
+async function fetchDriveFileAsText(fileMeta){
+  const g = gapi, token = g.client.getToken()?.access_token || '';
+  const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileMeta.id)}?alt=media`;
+  const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if(!resp.ok) throw new Error('Download falhou');
+  const mime = fileMeta.mimeType || '';
+  if (mime.startsWith('text/') || /\.txt$/i.test(fileMeta.name)) return await resp.text();
+  // DOCX/PDF → baixa bytes e usa parsers existentes
+  const ab = await resp.arrayBuffer();
+  const fakeFile = new File([ab], fileMeta.name, { type: mime || 'application/octet-stream' });
+  return await readFileAsText(fakeFile);
+}
+
+// Salvar no MESMO arquivo do Drive (PATCH por fileId; mover com add/removeParents quando necessário)
+async function patchDriveFileById(fileId, name, content){
+  const g = gapi;
+  const boundary = '-------314159265358979323846';
+  const delimiter = `\r\n--${boundary}\r\n`;
+  const closeDelim = `\r\n--${boundary}--`;
+  const metadata = { name, mimeType: 'text/plain' };
+  const body =
+    delimiter + 'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    JSON.stringify(metadata) + delimiter +
+    'Content-Type: text/plain; charset=UTF-8\r\n\r\n' +
+    content + closeDelim;
+
+  // busca pais atuais para decidir mover
+  let params = { uploadType: 'multipart' };
+  if (DRIVE_FOLDER_ID){
+    try{
+      const meta = await g.client.drive.files.get({ fileId, fields: 'parents' });
+      const parents = meta.result?.parents || [];
+      if (!parents.includes(DRIVE_FOLDER_ID)){
+        const remove = parents.join(',');
+        params = { uploadType:'multipart', addParents: DRIVE_FOLDER_ID, ...(remove?{removeParents: remove}:{}) };
+      }
+    }catch(_){}
+  }
+
+  return g.client.request({
+    path: `/upload/drive/v3/files/${fileId}`,
+    method: 'PATCH',
+    params,
+    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body
+  });
+}
+
+// Encontrar fileId por nome (dentro do Folder se definido)
+async function findDriveFileIdByName(name){
+  const g = gapi;
+  let q = `name='${name.replace(/'/g,"\\'")}' and trashed=false`;
+  if (DRIVE_FOLDER_ID) q += ` and '${DRIVE_FOLDER_ID}' in parents`;
+  const r = await g.client.drive.files.list({ q, fields: 'files(id,name,parents)' });
+  return (r.result?.files && r.result.files[0]) || null;
+}
+
+// Handler “Salvar no Drive” — sempre salvar no MESMO documento
+els.btnSaveDrive?.addEventListener('click', async ()=>{
+  try{
+    if (!selectedDoc){ alert('Selecione/abra um documento primeiro.'); return; }
+
+    // Conecta se necessário
+    if (!DRIVE_CONNECTED || typeof gapi === 'undefined'){
+      els.btnDrive?.click();
+      await new Promise((res,rej)=>{
+        let t=0, tm=setInterval(()=>{ if(DRIVE_CONNECTED){clearInterval(tm);res();} if((t+=1)>40){clearInterval(tm);rej(new Error('Não foi possível conectar ao Drive.'));}},250);
+      });
+    }
+
+    const name = selectedDoc.name;
+    const text = (editing ? els.searchPreview.textContent : (selectedDoc.text||'')) || '';
+
+    // 1) se já sabemos o fileId, PATCH direto
+    let fileId = selectedDoc.driveFileId || DRIVE_FILE_MAP[name] || null;
+
+    // 2) senão, tenta encontrar por nome (na pasta configurada, se houver)
+    if (!fileId){
+      const found = await findDriveFileIdByName(name);
+      if (!found){ alert('Arquivo não encontrado no Drive com este nome. Use a Lista de Documentos para abrir a versão do Drive.'); return; }
+      fileId = found.id;
+      DRIVE_FILE_MAP[name] = fileId;
+      selectedDoc.driveFileId = fileId;
+    }
+
+    els.btnSaveDrive.disabled = true;
+    await patchDriveFileById(fileId, name, text);
+    setStatus(els.driveStatus, 'ok', 'Drive: documento atualizado');
+    alert('Salvo no mesmo arquivo do Drive.');
+  }catch(e){
+    console.error(e);
+    setStatus(els.driveStatus, 'err', 'Drive: falha ao salvar');
+    alert('Falha ao salvar no Drive: ' + (e.result?.error?.message || e.message || e));
+  } finally {
+    if (els.btnSaveDrive) els.btnSaveDrive.disabled = (!DRIVE_CONNECTED || !(selectedDoc && selectedDoc.driveFileId));
+  }
+});
+
+// Ao importar localmente, habilita o botão de lista
+const _handleSelection = handleSelection;
+handleSelection = function(){ _handleSelection.apply(this, arguments); updateDocListEnabled(); };
+
+// Também habilita ao indexar a primeira vez
+const _renderFileList = renderFileList;
+renderFileList = function(){ _renderFileList.apply(this, arguments); updateDocListEnabled(); };
 
 // ===== Normalização para indexar (corrige quebra ao "indexar") =====
 function normalizeForSearch(raw){
@@ -1193,19 +1652,23 @@ function renderSearchResults(query, opts){
     `;
 
     div.addEventListener('click', ()=>{
-      selectedDoc = { name: doc.name, text: doc.text };
-      els.docTitle.textContent = doc.name;
+  // guarda também o possível fileId do Drive vinculado a este nome
+  selectedDoc = { name: doc.name, text: doc.text, driveFileId: (DRIVE_FILE_MAP[doc.name] || null) };
+  els.docTitle.textContent = doc.name;
 
-      const left  = escapeHtml(doc.text.slice(0, first));
-      const mid   = escapeHtml(doc.text.slice(first, first+len));
-      const right = escapeHtml(doc.text.slice(first+len));
-      els.searchPreview.innerHTML = `${left}<mark>${mid}</mark>${right}`;
+  const left  = escapeHtml(doc.text.slice(0, first));
+  const mid   = escapeHtml(doc.text.slice(first, first+len));
+  const right = escapeHtml(doc.text.slice(first+len));
+  els.searchPreview.innerHTML = `${left}<mark>${mid}</mark>${right}`;
 
-      editing = false;
-      els.searchPreview.contentEditable = 'false';
-      els.searchPreview.classList.remove('editing');
-      els.btnEdit.textContent = 'Editar';
-    });
+  editing = false;
+  els.searchPreview.contentEditable = 'false';
+  els.searchPreview.classList.remove('editing');
+  els.btnEdit.textContent = 'Editar';
+
+  // Habilita “Salvar no Drive” somente quando temos fileId
+  if (els.btnSaveDrive) els.btnSaveDrive.disabled = !selectedDoc.driveFileId;
+});
 
     frag.appendChild(div);
   });
@@ -1394,35 +1857,51 @@ const accessToken = await new Promise((res, rej)=>{
 
 async function upsertTextFileOnDrive(name, content){
   const g = await ensureGapiSignedIn();
-  // 1) tenta achar um arquivo com o mesmo nome (e opcionalmente na mesma pasta)
+
+  // procura por nome (dentro do Folder, se informado)
   let q = `name = '${name.replace(/'/g, "\\'")}' and trashed = false`;
-  if(DRIVE_FOLDER_ID) q += ` and '${DRIVE_FOLDER_ID}' in parents`;
-  const found = await g.client.drive.files.list({ q, fields: 'files(id,name)' });
-  const metadata = {
-    name,
-    mimeType: 'text/plain',
-    ...(DRIVE_FOLDER_ID ? { parents: [DRIVE_FOLDER_ID] } : {})
-  };
+  if (DRIVE_FOLDER_ID) q += ` and '${DRIVE_FOLDER_ID}' in parents`;
+  const found = await g.client.drive.files.list({ q, fields: 'files(id,name,parents)' });
+
+  // helpers de upload multipart
   const boundary = '-------314159265358979323846';
   const delimiter = `\r\n--${boundary}\r\n`;
   const closeDelim = `\r\n--${boundary}--`;
-  const body =
-    delimiter +
-    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+  const mkBody = (metadata, text) =>
+    delimiter + 'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
     JSON.stringify(metadata) + delimiter +
     'Content-Type: text/plain; charset=UTF-8\r\n\r\n' +
-    content + closeDelim;
+    text + closeDelim;
 
-  if(found.result.files && found.result.files.length){
-    const fileId = found.result.files[0].id;
+  if (found.result.files && found.result.files.length){
+    // UPDATE — não enviar "parents" no corpo!
+    const file = found.result.files[0];
+    const metadata = { name, mimeType: 'text/plain' };
+    const body = mkBody(metadata, content);
+
+    // mover para a pasta se precisar, via add/removeParents
+    let params = { uploadType: 'multipart' };
+    if (DRIVE_FOLDER_ID && !(file.parents||[]).includes(DRIVE_FOLDER_ID)){
+      const remove = (file.parents||[]).join(',');
+      params = { uploadType: 'multipart', addParents: DRIVE_FOLDER_ID, ...(remove ? { removeParents: remove } : {}) };
+    }
+
     return g.client.request({
-      path: `/upload/drive/v3/files/${fileId}`,
+      path: `/upload/drive/v3/files/${file.id}`,
       method: 'PATCH',
-      params: { uploadType: 'multipart' },
+      params,
       headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
       body
     });
-  }else{
+  } else {
+    // CREATE — aqui sim definimos "parents"
+    const metadata = {
+      name,
+      mimeType: 'text/plain',
+      ...(DRIVE_FOLDER_ID ? { parents: [DRIVE_FOLDER_ID] } : {})
+    };
+    const body = mkBody(metadata, content);
+
     return g.client.request({
       path: '/upload/drive/v3/files',
       method: 'POST',
