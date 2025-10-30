@@ -576,9 +576,10 @@ mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; paddi
 </label>
       </div>
 
-      <div class="row" style="margin-top:8px">
-  <button id="btnPickFiles2"  class="btn"        type="button">Importar arquivos</button>
-  <button id="btnPickFolder2" class="btn ghost"  type="button">Importar pasta</button>
+   <div class="row" style="margin-top:8px">
+  <button id="btnPickFiles2"  class="btn"        type="button">Importar arquivos (LOCAL)</button>
+  <button id="btnPickFolder2" class="btn ghost"  type="button">Importar pasta (LOCAL)</button>
+  <button id="btnDocList"     class="btn ghost"  type="button" title="Listar documentos importados">Lista de Documentos</button>
 </div>
 
       <div class="status-line">
@@ -601,8 +602,8 @@ mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; paddi
         <div class="preview-actions" aria-label="Ações da prévia">
   <!-- Linha 1: Edição local -->
   <div class="row" style="gap:8px">
-    <button id="btnEdit"      class="btn" type="button" title="Alternar modo de edição">Editar</button>
-    <button id="btnSaveLocal" class="btn" type="button" title="Salvar no arquivo original">Salvar</button>
+    <button id="btnEdit"       class="btn"        type="button" title="Alternar modo de edição">Editar</button>
+    <button id="btnSaveLocal"  class="btn"        type="button" title="Salvar no arquivo atual (DOCX local)">Salvar</button>
   </div>
   <!-- Linha 2: Drive + Exportações -->
   <div class="row" style="gap:8px">
@@ -647,6 +648,31 @@ mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; paddi
   </div>
 
 </main>
+<script>
+// Reaproveita o mesmo fluxo do botão Salvar (DOCX local)
+(function bindExports(){
+  const btnDocx = document.getElementById('btnExportDocx');
+  if(btnDocx){
+    const c = btnDocx.cloneNode(true);
+    btnDocx.replaceWith(c);
+    c.addEventListener('click', ()=> document.getElementById('btnSaveLocal').click());
+  }
+  const btnTxt = document.getElementById('btnExportTxt');
+  if(btnTxt){
+    const c2 = btnTxt.cloneNode(true);
+    btnTxt.replaceWith(c2);
+    c2.addEventListener('click', ()=>{
+      const title = (els.docTitle?.textContent || selectedDoc?.name || 'documento').replace(/\.[^.]+$/, '');
+      const text  = (window.editing ? els.searchPreview.textContent : (selectedDoc?.text||els.searchPreview.textContent||''));
+      const blob = new Blob([String(text||'')], {type:'text/plain'});
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement('a'), { href:url, download:`${title}.txt`, style:'display:none' });
+      document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 300);
+    });
+  }
+})();
+</script>
+
 
   <!-- Ajuda flutuante (canto inferior direito) -->
   <div class="help-fab">
@@ -783,9 +809,9 @@ function setStatus(el, state, text){
 }
 
 // >>> OPCIONAL: preencha para conexão em 1 clique (sem digitar no modal)
-window.DRIVE_API_KEY   = window.DRIVE_API_KEY   || 'AIzaSyDbcMQgPkX-364aevdeziKAnb_VqD6gnjg';
-window.DRIVE_CLIENT_ID = window.DRIVE_CLIENT_ID || '824074189581-1ffkgpvpqsnl6doljveufo16c6u748t1.apps.googleusercontent.com';
-window.DRIVE_FOLDER_ID = window.DRIVE_FOLDER_ID || '1huW8TxLr8gHMErDOmVPGbWduidmtDViW'; // defina a pasta padrão aqui (ID)
+window.DRIVE_API_KEY   = window.DRIVE_API_KEY   || 'COLOQUE_SUA_API_KEY_AQUI';
+window.DRIVE_CLIENT_ID = window.DRIVE_CLIENT_ID || 'COLOQUE_SEU_CLIENT_ID_AQUI';
+window.DRIVE_FOLDER_ID = window.DRIVE_FOLDER_ID || ''; // defina a pasta padrão aqui (ID)
 
 const hasClient = (typeof DRIVE_CLIENT_ID !== 'undefined' && DRIVE_CLIENT_ID);
 if (els.driveStatus){
@@ -849,13 +875,25 @@ function renderImportedDocs(){
   for(const f of selectedFiles){
     const li = document.createElement('li');
     li.textContent = f.name || '(sem nome)';
+    li.style.cursor = 'pointer';
+    li.addEventListener('click', async ()=>{
+      try{
+        const text = await readFileAsText(f);
+        selectedDoc = { name: f.name, text, driveFileId: (window.DRIVE_FILE_MAP||{})[f.name] };
+        editing = false;
+        els.searchPreview.contentEditable = 'false';
+        els.searchPreview.classList.remove('editing');
+        els.searchPreview.textContent = text;
+        els.docTitle.textContent = f.name;
+      }catch(e){
+        alert('Falha ao abrir: ' + (e.message||e));
+      }
+    });
     ul.appendChild(li);
   }
 }
 
-// quando os inputs do Conversor receberem arquivos, refletir na lista da Pesquisa
-els.fileInputFiles?.addEventListener('change', renderImportedDocs);
-els.fileInputDir?.addEventListener('change', renderImportedDocs);
+// renderImportedDocs agora é chamado ao final de handleSelection()
 
 // normaliza CRLF e comprime linhas em branco (igual ao conversor)
 // Remove diacríticos (áàâãä → a; éê → e; ç → c, etc.)
@@ -1031,7 +1069,7 @@ function handleSelection(){
   indexedDocs = []; // força reindexar na próxima busca (Pesquisa)
 
   // STATUS: origem manual
-    if(els.importStatus){
+  if(els.importStatus){
     const n = selectedFiles.length;
     if(n){
       setStatus(els.importStatus, 'ok', `Origem: importação manual (${n} arquivo${n>1?'s':''})`);
@@ -1039,6 +1077,9 @@ function handleSelection(){
       setStatus(els.importStatus, 'idle', 'Origem: Nenhum documento carregado');
     }
   }
+
+  // Atualiza o painel "Documentos importados" imediatamente
+  renderImportedDocs();
 }
   function mergeFileLists(prev, add){
     const map = new Map();
@@ -2769,6 +2810,169 @@ els.btnCriarExportDocx?.addEventListener('click', async ()=>{
   // Inicialização
   renderBotMenu();
   renderForm('Modelo Padrão');
+})();
+</script>
+<script>
+(function(){
+  // Garante mapa global (arquivo → fileId) para salvar no Drive quando necessário
+  window.DRIVE_FILE_MAP = window.DRIVE_FILE_MAP || Object.create(null);
+
+  // Baixa arquivo do Drive preservando formato.
+  // - Google Docs nativo → exporta como DOCX
+  // - Demais → alt=media, mantendo nome/extensão original
+  async function fetchDriveFileAsFile(fileMeta){
+    const g = gapi;
+    const token = g.client.getToken()?.access_token || '';
+    const isGDoc = fileMeta.mimeType === 'application/vnd.google-apps.document';
+    if (isGDoc){
+      const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileMeta.id)}/export?mimeType=application/vnd.openxmlformats-officedocument.wordprocessingml.document`;
+      const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if(!resp.ok) throw new Error('Falha ao exportar Google Docs como DOCX');
+      const blob = await resp.blob();
+      return new File([blob], restoreColons(`${fileMeta.name}.docx`), { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    } else {
+      const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileMeta.id)}?alt=media`;
+      const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if(!resp.ok) throw new Error('Download falhou');
+      const ct = resp.headers.get('Content-Type') || '';
+      const blob = await resp.blob();
+      return new File([blob], restoreColons(fileMeta.name), { type: ct });
+    }
+  }
+
+  // Sobrescreve importação do Drive para manter formatos originais
+  const oldImport = window.importFromDriveFolder;
+  window.importFromDriveFolder = async function(){
+    if (!window.DRIVE_FOLDER_ID){ openDriveCfg?.(); alert('Informe o Folder ID para importar a pasta do Drive.'); return; }
+    try{
+      const g = gapi;
+      const res = await g.client.drive.files.list({
+        q: `'${DRIVE_FOLDER_ID}' in parents and trashed=false`,
+        fields: 'files(id,name,mimeType,modifiedTime,size,parents)',
+        pageSize: 1000
+      });
+      const list = res.result?.files || [];
+      const allowed = list.filter(f=>{
+        const n = (f.name||'').toLowerCase();
+        if (f.mimeType === 'application/vnd.google-apps.document') return true;
+        return ['.txt','.md','.csv','.json','.log','.html','.htm','.pdf','.docx','.doc'].some(ext => n.endsWith(ext));
+      });
+
+      const toAdd = [];
+      for (const f of allowed){
+        try{
+          const fileObj = await fetchDriveFileAsFile(f);
+          toAdd.push(fileObj);
+          window.DRIVE_FILE_MAP[fileObj.name] = f.id; // para salvar no Drive depois
+        }catch(err){ console.warn('Falha ao obter arquivo', f.name, err); }
+      }
+      if (toAdd.length){
+        selectedFiles = (typeof mergeFileLists==='function') ? mergeFileLists(selectedFiles, toAdd) : (selectedFiles||[]).concat(toAdd);
+        renderFileList?.();
+        (window.renderImportedDocs||function(){})();
+      }
+      if (els.importStatus){
+        setStatus(els.importStatus, toAdd.length ? 'ok' : 'idle',
+          toAdd.length ? `Origem: Google Drive (${toAdd.length} arquivo${toAdd.length>1?'s':''})` : 'Origem: Nenhum documento carregado');
+      }
+      // força reindexação
+      window.indexedDocs = [];
+    }catch(e){
+      console.error(e);
+      setStatus(els.importStatus, 'err', 'Origem: falha ao listar pasta do Drive');
+      alert('Não foi possível listar a pasta do Drive: ' + (window.prettyError?.(e) || e));
+    }
+  };
+
+  // Lista de Documentos (modal rápido) — escolher e abrir sem usar a busca
+  function openDocList(){
+    const list = selectedFiles || [];
+    if(!list.length){ alert('Nenhum documento importado.'); return; }
+    const ov = document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+    const box = document.createElement('div');
+    box.style.cssText='width:min(560px,94vw);max-height:76vh;overflow:auto;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;';
+    box.innerHTML = '<h3 style="margin:0 0 10px">Documentos importados</h3>';
+    const ul = document.createElement('ul'); ul.style.cssText='list-style:none;margin:0;padding:0';
+    list.forEach((f)=>{
+      const li = document.createElement('li');
+      li.style.cssText='padding:8px 10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;background:#0f1621;';
+      li.textContent = f.name;
+      li.addEventListener('click', async ()=>{
+        try{
+          const text = await readFileAsText(f); // já existe no código
+          window.selectedDoc = { name: f.name, text, driveFileId: (window.DRIVE_FILE_MAP||{})[f.name] };
+          window.editing = false;
+          els.searchPreview.contentEditable = 'false';
+          els.searchPreview.classList.remove('editing');
+          els.searchPreview.textContent = text;
+          els.docTitle.textContent = f.name;
+          ov.remove();
+        }catch(e){ alert('Falha ao abrir: ' + (e.message||e)); }
+      });
+      ul.appendChild(li);
+    });
+    const actions = document.createElement('div');
+    actions.style.cssText='margin-top:8px;display:flex;justify-content:flex-end;gap:8px';
+    const btnFechar = document.createElement('button'); btnFechar.className='btn ghost'; btnFechar.textContent='Fechar';
+    btnFechar.addEventListener('click', ()=> ov.remove());
+    actions.appendChild(btnFechar);
+    box.appendChild(ul); box.appendChild(actions); ov.appendChild(box); document.body.appendChild(ov);
+  }
+
+  // Liga o botão "Lista de Documentos" (habilita/desabilita conforme houver arquivos)
+  const btnDocList = document.getElementById('btnDocList');
+  if(btnDocList){
+    btnDocList.addEventListener('click', openDocList);
+    const origRenderImported = window.renderImportedDocs;
+    window.renderImportedDocs = function(){
+      origRenderImported?.();
+      btnDocList.disabled = !(selectedFiles && selectedFiles.length);
+    };
+    btnDocList.disabled = !(selectedFiles && selectedFiles.length);
+  }
+
+  // Salvar local (DOCX) SEM Drive — e não exigir selectedDoc se houver texto na prévia
+  (function(){
+    const btnSave = document.getElementById('btnSaveLocal');
+    if(btnSave){
+      const newBtn = btnSave.cloneNode(true);
+      btnSave.replaceWith(newBtn);
+      newBtn.addEventListener('click', async ()=>{
+        try{
+          if(!window.docx){ alert('Biblioteca DOCX não carregada.'); return; }
+          const { Document, Packer, Paragraph, TextRun } = docx;
+          const title = (els.docTitle?.textContent || '').trim() || (selectedDoc?.name) || 'documento';
+          const base  = title.replace(/\.[^.]+$/, '');
+          const text  = (window.editing ? els.searchPreview.textContent : (selectedDoc?.text||els.searchPreview.textContent||''));
+          if(!text){ alert('Nada para salvar.'); return; }
+
+          function mdRuns(line){
+            const out=[]; const re=/(\*\*[^*]+\*\*|\*[^*]+\*|__[^_]+__|_[^_]+_)/g; let i=0,m;
+            while((m=re.exec(line))){
+              if(m.index>i) out.push(new TextRun({ text:line.slice(i,m.index), font:'Arial', size:20 }));
+              const raw=m[0], inner=raw.replace(/^\*\*|\*\*$|^__|__$/g,'').replace(/^\*|\*$|^_|_$/g,'');
+              const b=raw.startsWith('**')||raw.startsWith('__'); const it=(!b)&&(raw.startsWith('*')||raw.startsWith('_'));
+              out.push(new TextRun({ text:inner, bold:b, italics:it, font:'Arial', size:20 })); i=re.lastIndex;
+            }
+            if(i<line.length) out.push(new TextRun({ text:line.slice(i), font:'Arial', size:20 }));
+            return out.length?out:[ new TextRun({ text:' ', font:'Arial', size:20 }) ];
+          }
+          const children = [
+            new Paragraph({ children:[ new TextRun({ text: title, bold:true, font:'Arial', size:28 }) ] }),
+            new Paragraph({ children:[ new TextRun({ text:'', font:'Arial', size:20 }) ] }),
+          ];
+          String(text).split('\n').forEach(l=> children.push(new Paragraph({ children: mdRuns(l) })));
+          const docxDoc = new Document({ sections:[{ properties:{}, children }] });
+          const blob = await Packer.toBlob(docxDoc);
+          const url = URL.createObjectURL(blob);
+          const a = Object.assign(document.createElement('a'), { href:url, download:`${base}.docx`, style:'display:none' });
+          document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 300);
+        }catch(e){ console.error(e); alert('Falha ao salvar localmente: ' + (e.message||e)); }
+      });
+    }
+// (removido) — “Salvar Cópia” não é mais necessário
+  })();
 })();
 </script>
 </body>
