@@ -576,10 +576,9 @@ mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; paddi
 </label>
       </div>
 
-   <div class="row" style="margin-top:8px">
+  <div class="row" style="margin-top:8px">
   <button id="btnPickFiles2"  class="btn"        type="button">Importar arquivos (LOCAL)</button>
   <button id="btnPickFolder2" class="btn ghost"  type="button">Importar pasta (LOCAL)</button>
-  <button id="btnDocList"     class="btn ghost"  type="button" title="Listar documentos importados">Lista de Documentos</button>
 </div>
 
       <div class="status-line">
@@ -608,8 +607,8 @@ mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; paddi
   <!-- Linha 2: Drive + Exportações -->
   <div class="row" style="gap:8px">
     <button id="btnSaveDrive"   class="btn btn-drive" type="button" title="Salvar no Drive (mesmo arquivo quando disponível)">Salvar no Drive</button>
-    <button id="btnExportDocx"  class="btn ghost"     type="button">Exportar DOCX</button>
-    <button id="btnExportTxt"   class="btn ghost"     type="button">Exportar TXT</button>
+    <button id="btnExportDocx"  class="btn ghost"     type="button">Salvar DOCX</button>
+<button id="btnExportTxt"   class="btn ghost"     type="button">Salvar TXT</button>
   </div>
 </div>
       </div>
@@ -649,30 +648,101 @@ mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; paddi
 
 </main>
 <script>
-// Reaproveita o mesmo fluxo do botão Salvar (DOCX local)
-(function bindExports(){
+</main>
+<script>
+// "Salvar DOCX/TXT": usa a PRÉVIA e abre diálogo; com TRAVA anti-duplo para não salvar 2x.
+(function bindSavesWithPicker(){
+  function mdRuns(line, docx){
+    const { TextRun } = docx;
+    const out=[]; const re=/(\*\*[^*]+\*\*|\*[^*]+\*|__[^_]+__|_[^_]+_)/g; let i=0,m;
+    while((m=re.exec(line))){
+      if(m.index>i) out.push(new TextRun({ text: line.slice(i,m.index), font:'Arial', size:20 }));
+      const raw=m[0], inner=raw.replace(/^\*\*|\*\*$|^__|__$/g,'').replace(/^\*|\*$|^_|_$/g,'');
+      const b=raw.startsWith('**')||raw.startsWith('__'); const it=(!b)&&(raw.startsWith('*')||raw.startsWith('_'));
+      out.push(new TextRun({ text: inner, bold:b, italics:it, font:'Arial', size:20 })); i=re.lastIndex;
+    }
+    if(i<line.length) out.push(new TextRun({ text: line.slice(i), font:'Arial', size:20 }));
+    return out.length ? out : [ new TextRun({ text:' ', font:'Arial', size:20 }) ];
+  }
+
+  async function saveDocxFromPreview(targetBtn){
+    if(targetBtn?.dataset.busy==='1') return; targetBtn.dataset.busy='1';
+    try{
+      if(!window.docx){ alert('Biblioteca DOCX não carregada.'); return; }
+      const { Document, Packer, Paragraph, TextRun } = docx;
+      const title = (els.docTitle?.textContent || selectedDoc?.name || 'documento').trim() || 'documento';
+      const base  = title.replace(/\.[^.]+$/, '');
+      const text  = String(els.searchPreview?.textContent || selectedDoc?.text || '');
+      const children = [
+        new Paragraph({ children:[ new TextRun({ text: title, bold:true, font:'Arial', size:28 }) ] }),
+        new Paragraph({ children:[ new TextRun({ text:'', font:'Arial', size:20 }) ] }),
+      ];
+      text.split('\n').forEach(l=> children.push(new Paragraph({ children: mdRuns(l, docx) })));
+      const docxDoc = new Document({ sections:[{ properties:{}, children }] });
+      const blob = await Packer.toBlob(docxDoc);
+      const suggested = `${base}.docx`;
+
+      if ('showSaveFilePicker' in window){
+        const handle = await window.showSaveFilePicker({
+          suggestedName: suggested,
+          types: [{ description: 'Documento do Word (.docx)', accept: { 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] } }]
+        });
+        const w = await handle.createWritable(); await w.write(blob); await w.close();
+      } else if ('showDirectoryPicker' in window){
+        const dir = await window.showDirectoryPicker({ mode:'readwrite' });
+        const fh = await dir.getFileHandle(suggested, { create:true });
+        const w = await fh.createWritable(); await w.write(blob); await w.close();
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = Object.assign(document.createElement('a'), { href:url, download:suggested, style:'display:none' });
+        document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 300);
+      }
+    }catch(e){ console.error(e); alert('Falha ao salvar DOCX: ' + (e.message||e)); }
+    finally{ delete targetBtn.dataset.busy; }
+  }
+
+  async function saveTxtFromPreview(targetBtn){
+    if(targetBtn?.dataset.busy==='1') return; targetBtn.dataset.busy='1';
+    try{
+      const title = (els.docTitle?.textContent || selectedDoc?.name || 'documento').replace(/\.[^.]+$/, '');
+      const text  = String(els.searchPreview?.textContent || selectedDoc?.text || '');
+      const blob  = new Blob([text], {type:'text/plain'});
+      const suggested = `${title}.txt`;
+
+      if ('showSaveFilePicker' in window){
+        const handle = await window.showSaveFilePicker({
+          suggestedName: suggested,
+          types: [{ description: 'Texto (.txt)', accept: { 'text/plain': ['.txt'] } }]
+        });
+        const w = await handle.createWritable(); await w.write(blob); await w.close();
+      } else if ('showDirectoryPicker' in window){
+        const dir = await window.showDirectoryPicker({ mode:'readwrite' });
+        const fh = await dir.getFileHandle(suggested, { create:true });
+        const w = await fh.createWritable(); await w.write(blob); await w.close();
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = Object.assign(document.createElement('a'), { href:url, download:suggested, style:'display:none' });
+        document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 300);
+      }
+    }catch(e){ console.error(e); alert('Falha ao salvar TXT: ' + (e.message||e)); }
+    finally{ delete targetBtn.dataset.busy; }
+  }
+
+  // Ligar botões (clonando para remover ouvintes antigos)
   const btnDocx = document.getElementById('btnExportDocx');
   if(btnDocx){
     const c = btnDocx.cloneNode(true);
     btnDocx.replaceWith(c);
-    c.addEventListener('click', ()=> document.getElementById('btnSaveLocal').click());
+    c.addEventListener('click', (ev)=> saveDocxFromPreview(c));
   }
-  const btnTxt = document.getElementById('btnExportTxt');
+  const btnTxt  = document.getElementById('btnExportTxt');
   if(btnTxt){
-    const c2 = btnTxt.cloneNode(true);
+    const c2= btnTxt.cloneNode(true);
     btnTxt.replaceWith(c2);
-    c2.addEventListener('click', ()=>{
-      const title = (els.docTitle?.textContent || selectedDoc?.name || 'documento').replace(/\.[^.]+$/, '');
-      const text  = (window.editing ? els.searchPreview.textContent : (selectedDoc?.text||els.searchPreview.textContent||''));
-      const blob = new Blob([String(text||'')], {type:'text/plain'});
-      const url = URL.createObjectURL(blob);
-      const a = Object.assign(document.createElement('a'), { href:url, download:`${title}.txt`, style:'display:none' });
-      document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 300);
-    });
+    c2.addEventListener('click', (ev)=> saveTxtFromPreview(c2));
   }
 })();
 </script>
-
 
   <!-- Ajuda flutuante (canto inferior direito) -->
   <div class="help-fab">
@@ -809,9 +879,9 @@ function setStatus(el, state, text){
 }
 
 // >>> OPCIONAL: preencha para conexão em 1 clique (sem digitar no modal)
-window.DRIVE_API_KEY   = window.DRIVE_API_KEY   || 'AIzaSyDbcMQgPkX-364aevdeziKAnb_VqD6gnjg';
-window.DRIVE_CLIENT_ID = window.DRIVE_CLIENT_ID || '824074189581-1ffkgpvpqsnl6doljveufo16c6u748t1.apps.googleusercontent.com';
-window.DRIVE_FOLDER_ID = window.DRIVE_FOLDER_ID || '1huW8TxLr8gHMErDOmVPGbWduidmtDViW'; // defina a pasta padrão aqui (ID)
+window.DRIVE_API_KEY   = window.DRIVE_API_KEY   || 'COLOQUE_SUA_API_KEY_AQUI';
+window.DRIVE_CLIENT_ID = window.DRIVE_CLIENT_ID || 'COLOQUE_SEU_CLIENT_ID_AQUI';
+window.DRIVE_FOLDER_ID = window.DRIVE_FOLDER_ID || ''; // defina a pasta padrão aqui (ID)
 
 const hasClient = (typeof DRIVE_CLIENT_ID !== 'undefined' && DRIVE_CLIENT_ID);
 if (els.driveStatus){
@@ -885,6 +955,8 @@ function renderImportedDocs(){
         els.searchPreview.classList.remove('editing');
         els.searchPreview.textContent = text;
         els.docTitle.textContent = f.name;
+        // Ao abrir, SALVAR fica desabilitado até o usuário ativar "Editar"
+        if (els.btnSaveLocal) els.btnSaveLocal.disabled = true;
       }catch(e){
         alert('Falha ao abrir: ' + (e.message||e));
       }
@@ -1181,14 +1253,26 @@ function handleSelection(){
     a.click();
     setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
   }
-  function createDownloadLink(fname, text){
-    const a = document.createElement('a');
-    a.href = '#';
-    a.textContent = fname;
-    a.addEventListener('click', (ev)=>{ ev.preventDefault(); download(fname, text); });
-    els.downloads.appendChild(a);
-    generatedPacksData.push({ fname, text });
+ function createDownloadLink(fname, text){
+  // No modo "Converter para TXT (1:1)" remover bloco inteiro [NOME DO DOCUMENTO] ... [/NOME DO DOCUMENTO]
+  // e também marcadores soltos como [INICIO DO DOCUMENTO], [CONTEUDO], etc.
+  if (els?.modeIndividual?.checked){
+    let s = String(text||'');
+    // remove bloco de nome (com conteúdo entre as tags)
+    s = s.replace(/\[\s*NOME DO DOCUMENTO\s*\][\s\S]*?\[\s*\/NOME DO DOCUMENTO\s*\]/gmi, '');
+    // remove marcadores de início/fim/conteúdo quando aparecem sozinhos em linhas
+    s = s.replace(/^\s*\[(INICIO DO DOCUMENTO|FIM DO DOCUMENTO|CONTEUDO|\/CONTEUDO)\]\s*$/gmi, '');
+    // normaliza espaços
+    s = s.replace(/\n{3,}/g, '\n\n').replace(/^\s+|\s+$/g, '');
+    text = s;
   }
+  const a = document.createElement('a');
+  a.href = '#';
+  a.textContent = fname;
+  a.addEventListener('click', (ev)=>{ ev.preventDefault(); download(fname, text); });
+  els.downloads.appendChild(a);
+  generatedPacksData.push({ fname, text });
+}
 
   // ========= “Baixar todos” & Reset =========
  els.btnDownloadAll.addEventListener('click', async () => {
@@ -2973,6 +3057,109 @@ els.btnCriarExportDocx?.addEventListener('click', async ()=>{
     }
 // (removido) — “Salvar Cópia” não é mais necessário
   })();
+})();
+</script>
+<script>
+// Habilita o botão "Salvar" apenas quando o modo de edição estiver ativo
+(function guardSaveOnEdit(){
+  if (els.btnSaveLocal){
+    // desabilita por padrão
+    els.btnSaveLocal.disabled = true;
+
+    function syncSaveEnabled(){
+      const isEd = (els.searchPreview?.isContentEditable === true) || els.searchPreview?.classList?.contains('editing');
+      els.btnSaveLocal.disabled = !isEd;
+    }
+
+    // sempre que clicar em EDITAR, reavalia o estado
+    els.btnEdit?.addEventListener('click', ()=> setTimeout(syncSaveEnabled, 0));
+    // ao perder foco da prévia, também reavalia (caso EDITAR desligue por outro fluxo)
+    els.searchPreview?.addEventListener('blur', ()=> setTimeout(syncSaveEnabled, 0));
+    // ao carregar um documento por clique na lista, o Bloco 3 já força disabled=true
+  }
+})();
+</script>
+<script>
+// "Salvar" local: grava somente na sessão (sem download/Drive) e só fica habilitado em modo Editar
+(function bindSaveStateOnly(){
+  const btn = document.getElementById('btnSaveLocal');
+  const preview = document.getElementById('searchPreview');
+  if(!btn || !preview) return;
+
+  // remove listeners antigos
+  const clone = btn.cloneNode(true);
+  btn.replaceWith(clone);
+  els.btnSaveLocal = clone;
+
+  // começa desabilitado
+  clone.disabled = true;
+
+  function isEditing(){
+    return preview.isContentEditable === true || preview.classList.contains('editing');
+  }
+
+  // habilita/desabilita ao alternar edição
+  els.btnEdit?.addEventListener('click', ()=> setTimeout(()=>{ clone.disabled = !isEditing(); }, 0));
+  preview.addEventListener('input', ()=>{ if(isEditing()) clone.disabled = false; });
+
+  // salvar apenas atualiza o estado em memória
+  clone.addEventListener('click', ()=>{
+    if(!isEditing()){ alert('Ative o modo Editar para salvar.'); return; }
+    const text = String(preview.textContent || '');
+    const name = (els.docTitle?.textContent || selectedDoc?.name || 'documento');
+    // garante objeto selecionado
+    if(!window.selectedDoc){ window.selectedDoc = { name, text, driveFileId: (window.DRIVE_FILE_MAP||{})[name] }; }
+    window.selectedDoc.text = text;
+    // feedback discreto
+    if(els.importStatus) setStatus(els.importStatus, 'ok', 'Edição salva na sessão');
+    // desabilita até nova edição
+    clone.disabled = true;
+  });
+})();
+</script>
+<script>
+// "Salvar" (Pesquisa): grava somente na sessão (sem download/Drive), só habilita em modo Editar e ENCERRA a edição ao salvar
+(function bindSaveStateOnly(){
+  const btn = document.getElementById('btnSaveLocal');
+  const preview = document.getElementById('searchPreview');
+  if(!btn || !preview) return;
+
+  // remove listeners antigos
+  const clone = btn.cloneNode(true);
+  btn.replaceWith(clone);
+  els.btnSaveLocal = clone;
+
+  // começa desabilitado
+  clone.disabled = true;
+
+  function isEditing(){
+    return preview.isContentEditable === true || preview.classList.contains('editing');
+  }
+  function enableIfEditing(){
+    clone.disabled = !isEditing();
+  }
+
+  // alternância do modo editar
+  els.btnEdit?.addEventListener('click', ()=> setTimeout(enableIfEditing, 0));
+  preview.addEventListener('input', ()=>{ if(isEditing()) clone.disabled = false; });
+
+  // salvar = gravar em memória + encerrar edição
+  clone.addEventListener('click', ()=>{
+    if(!isEditing()){ alert('Ative o modo Editar para salvar.'); return; }
+    const text = String(preview.textContent || '');
+    const name = (els.docTitle?.textContent || selectedDoc?.name || 'documento');
+    if(!window.selectedDoc){ window.selectedDoc = { name, text, driveFileId: (window.DRIVE_FILE_MAP||{})[name] }; }
+    window.selectedDoc.text = text;
+
+    // ENCERRA edição
+    preview.contentEditable = 'false';
+    preview.classList.remove('editing');
+    window.editing = false;
+
+    // feedback + desabilita até nova edição
+    if(els.importStatus) setStatus(els.importStatus, 'ok', 'Edição salva na sessão');
+    clone.disabled = true;
+  });
 })();
 </script>
 </body>
