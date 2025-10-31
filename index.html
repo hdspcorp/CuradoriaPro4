@@ -333,6 +333,7 @@ mark{ background:#eab30833; border:1px solid #eab30855; border-radius:4px; paddi
 /* === Criação de Documentos === */
 #viewCriacao .list li{ padding:8px 10px; border:1px solid var(--border); border-radius:10px; margin-bottom:8px; cursor:pointer; background:#0f1621; }
 #viewCriacao .list li.active{ outline:2px solid #60a5fa55; background:#111a27; }
+#importedDocs li.active{ outline:2px solid #60a5fa55; background:#111a27; }
 #viewCriacao label{ display:block; margin-bottom:4px; color:var(--acc); }
 #viewCriacao input[type="text"], #viewCriacao textarea{ width:100%; }
 #viewCriacao .grid-form{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
@@ -956,6 +957,11 @@ function renderImportedDocs(){
     li.addEventListener('click', async ()=>{
       try{
         const text = await readFileAsText(f);
+
+        // destaque visual do item ativo
+        ul.querySelectorAll('li').forEach(x => x.classList.remove('active'));
+        li.classList.add('active');
+
         selectedDoc = { name: f.name, text, driveFileId: (window.DRIVE_FILE_MAP||{})[f.name] };
         editing = false;
         els.searchPreview.contentEditable = 'false';
@@ -1659,12 +1665,17 @@ if (typeof openDriveCfg !== 'function'){
 
 // Salva dados do modal
 els.cfgSave?.addEventListener('click', ()=>{
-  window.DRIVE_API_KEY   = els.cfgApiKey.value.trim()   || window.DRIVE_API_KEY   || '';
-  window.DRIVE_CLIENT_ID = els.cfgClientId.value.trim() || window.DRIVE_CLIENT_ID || '';
-  window.DRIVE_FOLDER_ID = els.cfgFolderId.value.trim() || window.DRIVE_FOLDER_ID || '';
-  els.driveCfg.style.display = 'none';
-  const ok = !!(DRIVE_CLIENT_ID);
+  window.DRIVE_API_KEY   = (els.cfgApiKey.value   || '').trim();
+  window.DRIVE_CLIENT_ID = (els.cfgClientId.value || '').trim();
+  window.DRIVE_FOLDER_ID = (els.cfgFolderId.value || '').trim();
+  try{
+    localStorage.setItem('drive_api_key',   window.DRIVE_API_KEY);
+    localStorage.setItem('drive_client_id', window.DRIVE_CLIENT_ID);
+    localStorage.setItem('drive_folder_id', window.DRIVE_FOLDER_ID);
+  }catch(_){}
+  const ok = !!window.DRIVE_CLIENT_ID;
   setStatus(els.driveStatus, ok ? 'idle' : 'err', ok ? 'Drive: API pronta para conectar' : 'Drive: faltam credenciais');
+  // Importante: NÃO fechar o modal ao salvar
 });
 
 els.cfgCancel?.addEventListener('click', ()=> { if(els.driveCfg) els.driveCfg.style.display='none'; });
@@ -1686,14 +1697,58 @@ els.btnDriveDisconnectTop?.addEventListener('click', driveDisconnect);
 async function connectDriveAndImport(){
   try{
     const _creds = (typeof getDriveCreds==='function') ? getDriveCreds() : { apiKey: window.DRIVE_API_KEY, clientId: window.DRIVE_CLIENT_ID };
-if(!_creds.apiKey || !_creds.clientId){
-  openDriveCfg?.(); alert('Preencha API KEY e CLIENT ID.'); return;
-}
+    if(!_creds.apiKey || !_creds.clientId){
+      openDriveCfg?.(); alert('Preencha API KEY e CLIENT ID.'); return;
+    }
+
     setStatus(els.driveStatus, 'idle', 'Drive: conectando…');
-    // Usa o fluxo existente do projeto
     const g = await ensureGapiSignedIn();
     setStatus(els.driveStatus, 'ok', 'Drive: conectado');
-    await importFromDriveFolder(); // carrega os arquivos da pasta
+
+    // 1) Se houver Folder ID (campo do modal OU global/localStorage), importa direto
+    const typedFolder = (els?.cfgFolderId?.value || '').trim();
+    const folderId = typedFolder || (window.DRIVE_FOLDER_ID || '').trim();
+
+    if (folderId){
+      window.DRIVE_FOLDER_ID = folderId;
+      try{ localStorage.setItem('drive_folder_id', window.DRIVE_FOLDER_ID); }catch(_){}
+      await importFromDriveFolder(); // carrega os arquivos da pasta informada
+      return;
+    }
+
+    // 2) Sem Folder ID → abre Picker para escolher a pasta
+    await new Promise(r=>g.load('picker', r));
+
+    const token = g.client.getToken()?.access_token || '';
+    const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(true);
+
+    const picker = new google.picker.PickerBuilder()
+      .setOAuthToken(token)
+      .setDeveloperKey(_creds.apiKey || window.DRIVE_API_KEY)
+      .setOrigin(window.location.origin)
+      .addView(view)
+      .setTitle('Selecione a pasta do Google Drive para importar')
+      .setCallback(async (data)=>{
+        if(data.action !== google.picker.Action.PICKED){
+          setStatus(els.driveStatus, 'ok', 'Drive: conectado');
+          return; // usuário cancelou, mantém modal aberto
+        }
+        const doc = (data.docs || []).find(d => d.type==='folder' || d.mimeType==='application/vnd.google-apps.folder');
+        if(!doc){ alert('Selecione uma pasta.'); return; }
+
+        // define Folder ID escolhido, persiste e reflete no campo
+        window.DRIVE_FOLDER_ID = doc.id;
+        if(els?.cfgFolderId) els.cfgFolderId.value = doc.id;
+        try{ localStorage.setItem('drive_folder_id', window.DRIVE_FOLDER_ID); }catch(_){}
+
+        // importa conteúdo da pasta escolhida
+        await importFromDriveFolder();
+      })
+      .build();
+
+    picker.setVisible(true);
   }catch(e){
     console.error(e);
     setStatus(els.driveStatus, 'err', 'Drive: erro ao conectar');
@@ -2331,11 +2386,13 @@ btCfgS?.addEventListener('click', ()=>{
   DRIVE_API_KEY   = inKey.value.trim();
   DRIVE_CLIENT_ID = inCid.value.trim();
   DRIVE_FOLDER_ID = inFld.value.trim();
-  localStorage.setItem('drive_api_key',   DRIVE_API_KEY);
-  localStorage.setItem('drive_client_id', DRIVE_CLIENT_ID);
-  localStorage.setItem('drive_folder_id', DRIVE_FOLDER_ID);
-  closeDriveCfg();
-  alert('Configuração salva. Agora use “Conectar ao Google Drive”.');
+  try{
+    localStorage.setItem('drive_api_key',   DRIVE_API_KEY);
+    localStorage.setItem('drive_client_id', DRIVE_CLIENT_ID);
+    localStorage.setItem('drive_folder_id', DRIVE_FOLDER_ID);
+  }catch(_){}
+  // Importante: NÃO fechar o modal ao salvar
+  alert('Configuração salva.');
 });
 
 // Botão “Conectar ao Google Drive” — também importa da pasta configurada
