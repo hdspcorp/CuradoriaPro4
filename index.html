@@ -1740,8 +1740,9 @@ async function connectDriveAndImport(){
 
         // define Folder ID escolhido, persiste e reflete no campo
         window.DRIVE_FOLDER_ID = doc.id;
-        if(els?.cfgFolderId) els.cfgFolderId.value = doc.id;
-        try{ localStorage.setItem('drive_folder_id', window.DRIVE_FOLDER_ID); }catch(_){}
+DRIVE_FOLDER_ID = doc.id; // mantém a variável local em sincronia
+if(els?.cfgFolderId) els.cfgFolderId.value = doc.id;
+try{ localStorage.setItem('drive_folder_id', window.DRIVE_FOLDER_ID); }catch(_){}
 
         // importa conteúdo da pasta escolhida
         await importFromDriveFolder();
@@ -1794,13 +1795,14 @@ async function fetchDriveFileText(fileMeta){
 
 // Importa todos os arquivos da pasta configurada
 async function importFromDriveFolder(){
-  if (!window.DRIVE_FOLDER_ID){
+  const folderId = window.DRIVE_FOLDER_ID || DRIVE_FOLDER_ID || '';
+  if (!folderId){
     openDriveCfg?.(); alert('Informe o Folder ID para importar a pasta do Drive.'); return;
   }
   try{
     const g = gapi;
     const res = await g.client.drive.files.list({
-      q: `'${window.DRIVE_FOLDER_ID}' in parents and trashed=false`,
+      q: `'${folderId}' in parents and trashed=false`,
       fields: 'files(id,name,mimeType,modifiedTime,size,parents)',
       pageSize: 1000
     });
@@ -2418,7 +2420,7 @@ els.btnDrive?.addEventListener('click', async ()=>{
 
     setStatus(els.importStatus, 'idle', 'Origem: consultando pasta do Drive…');
     const list = await g.client.drive.files.list({
-      q: `'${window.DRIVE_FOLDER_ID}' in parents and trashed = false`,
+      q: `'${folderId}' in parents and trashed=false`,
       fields: 'files(id,name,mimeType)',
       pageSize: 1000
     });
@@ -2996,8 +2998,9 @@ els.btnCriarExportDocx?.addEventListener('click', async ()=>{
 
   // Sobrescreve importação do Drive para manter formatos originais
   const oldImport = window.importFromDriveFolder;
-  window.importFromDriveFolder = async function(){
-    if (!window.DRIVE_FOLDER_ID){ openDriveCfg?.(); alert('Informe o Folder ID para importar a pasta do Drive.'); return; }
+window.importFromDriveFolder = async function(){
+  const folderId = window.DRIVE_FOLDER_ID || DRIVE_FOLDER_ID || '';
+  if (!folderId){ openDriveCfg?.(); alert('Informe o Folder ID para importar a pasta do Drive.'); return; }
     try{
       const g = gapi;
       const res = await g.client.drive.files.list({
