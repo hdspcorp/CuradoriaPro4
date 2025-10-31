@@ -1755,7 +1755,10 @@ async function connectDriveAndImport(){
     alert('Não foi possível conectar ao Google Drive: ' + prettyError(e));
   }
 }
-els.cfgConnect?.addEventListener('click', connectDriveAndImport);
+els.cfgConnect?.addEventListener('click', ()=>{
+  if (els?.driveCfg) els.driveCfg.style.display = 'none'; // fecha o modal antes da conexão
+  connectDriveAndImport();
+});
 els.btnDriveConnectTop?.addEventListener('click', ()=> openDriveCfg?.());
 
 // Baixa conteúdo como texto (DOCX/PDF/Google Docs → texto)
@@ -1797,7 +1800,7 @@ async function importFromDriveFolder(){
   try{
     const g = gapi;
     const res = await g.client.drive.files.list({
-      q: `'${DRIVE_FOLDER_ID}' in parents and trashed=false`,
+      q: `'${window.DRIVE_FOLDER_ID}' in parents and trashed=false`,
       fields: 'files(id,name,mimeType,modifiedTime,size,parents)',
       pageSize: 1000
     });
@@ -2132,7 +2135,7 @@ async function upsertTextFileOnDrive(name, content){
 
   // procura por nome (dentro do Folder, se informado)
   let q = `name = '${name.replace(/'/g, "\\'")}' and trashed = false`;
-  if (DRIVE_FOLDER_ID) q += ` and '${DRIVE_FOLDER_ID}' in parents`;
+  if (window.DRIVE_FOLDER_ID) q += ` and '${window.DRIVE_FOLDER_ID}' in parents`;
   const found = await g.client.drive.files.list({ q, fields: 'files(id,name,parents)' });
 
   // helpers de upload multipart
@@ -2415,7 +2418,7 @@ els.btnDrive?.addEventListener('click', async ()=>{
 
     setStatus(els.importStatus, 'idle', 'Origem: consultando pasta do Drive…');
     const list = await g.client.drive.files.list({
-      q: `'${DRIVE_FOLDER_ID}' in parents and trashed = false`,
+      q: `'${window.DRIVE_FOLDER_ID}' in parents and trashed = false`,
       fields: 'files(id,name,mimeType)',
       pageSize: 1000
     });
