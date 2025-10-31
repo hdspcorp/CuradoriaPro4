@@ -879,13 +879,22 @@ function setStatus(el, state, text){
 }
 
 // >>> OPCIONAL: preencha para conexão em 1 clique (sem digitar no modal)
-window.DRIVE_API_KEY   = window.DRIVE_API_KEY   || 'AIzaSyDbcMQgPkX-364aevdeziKAnb_VqD6gnjg';
-window.DRIVE_CLIENT_ID = window.DRIVE_CLIENT_ID || '824074189581-1ffkgpvpqsnl6doljveufo16c6u748t1.apps.googleusercontent.com';
-window.DRIVE_FOLDER_ID = window.DRIVE_FOLDER_ID || '1huW8TxLr8gHMErDOmVPGbWduidmtDViW'; // defina a pasta padrão aqui (ID)
+window.DRIVE_API_KEY   = window.DRIVE_API_KEY   || 'COLOQUE_SUA_API_KEY_AQUI';
+window.DRIVE_CLIENT_ID = window.DRIVE_CLIENT_ID || 'COLOQUE_SEU_CLIENT_ID_AQUI';
+window.DRIVE_FOLDER_ID = window.DRIVE_FOLDER_ID || ''; // defina a pasta padrão aqui (ID)
 
-const hasClient = (typeof DRIVE_CLIENT_ID !== 'undefined' && DRIVE_CLIENT_ID);
+// Helper: sempre retorna credenciais válidas (prioriza globais preenchidas; senão usa localStorage)
+function getDriveCreds(){
+  const lsKey = localStorage.getItem('drive_api_key') || '';
+  const lsCid = localStorage.getItem('drive_client_id') || '';
+  const apiKey = (window.DRIVE_API_KEY && !/COLOQUE_SUA_API_KEY_AQUI/i.test(window.DRIVE_API_KEY)) ? window.DRIVE_API_KEY : lsKey;
+  const clientId = (window.DRIVE_CLIENT_ID && !/COLOQUE_SEU_CLIENT_ID_AQUI/i.test(window.DRIVE_CLIENT_ID)) ? window.DRIVE_CLIENT_ID : lsCid;
+  return { apiKey: (apiKey||'').trim(), clientId: (clientId||'').trim() };
+}
+
+const _credsInit = (typeof getDriveCreds==='function') ? getDriveCreds() : { apiKey: window.DRIVE_API_KEY, clientId: window.DRIVE_CLIENT_ID };
 if (els.driveStatus){
-  setStatus(els.driveStatus, 'idle', hasClient ? 'Drive: API pronta para conectar' : 'Drive: Desconectado');
+  setStatus(els.driveStatus, 'idle', _credsInit.clientId ? 'Drive: API pronta para conectar' : 'Drive: Desconectado');
 }
 
 if (els.importStatus){
@@ -1678,9 +1687,10 @@ els.btnDriveDisconnectTop?.addEventListener('click', driveDisconnect);
 // Conectar e importar
 async function connectDriveAndImport(){
   try{
-    if(!window.DRIVE_API_KEY || !window.DRIVE_CLIENT_ID){
-      openDriveCfg?.(); alert('Preencha API KEY e CLIENT ID.'); return;
-    }
+    const _creds = (typeof getDriveCreds==='function') ? getDriveCreds() : { apiKey: window.DRIVE_API_KEY, clientId: window.DRIVE_CLIENT_ID };
+if(!_creds.apiKey || !_creds.clientId){
+  openDriveCfg?.(); alert('Preencha API KEY e CLIENT ID.'); return;
+}
     setStatus(els.driveStatus, 'idle', 'Drive: conectando…');
     // Usa o fluxo existente do projeto
     const g = await ensureGapiSignedIn();
@@ -2032,22 +2042,24 @@ async function ensureGapiSignedIn(){
       try{
         const g = window.gapi;
         await new Promise(r=>g.load('client', r));
-        await g.client.init({ apiKey: DRIVE_API_KEY, discoveryDocs: [DRIVE_DISCOVERY] });
+        const { apiKey, clientId } = (typeof getDriveCreds==='function') ? getDriveCreds() : { apiKey: DRIVE_API_KEY, clientId: DRIVE_CLIENT_ID };
+if(!apiKey || !clientId){ throw new Error('Credenciais do Drive ausentes (API Key/Client ID).'); }
+await g.client.init({ apiKey, discoveryDocs: [DRIVE_DISCOVERY] });
 
-        // Carregar GIS
-        await new Promise((res, rej)=>{
-          if(window.google?.accounts?.oauth2) return res();
-          const s = document.createElement('script');
-          s.src = 'https://accounts.google.com/gsi/client';
-          s.async = true; s.onload = res; s.onerror = ()=>rej(new Error('Falha ao carregar Google Identity Services'));
-          document.head.appendChild(s);
-        });
+// Carregar GIS
+await new Promise((res, rej)=>{
+  if(window.google?.accounts?.oauth2) return res();
+  const s = document.createElement('script');
+  s.src = 'https://accounts.google.com/gsi/client';
+  s.async = true; s.onload = res; s.onerror = ()=>rej(new Error('Falha ao carregar Google Identity Services'));
+  document.head.appendChild(s);
+});
 
-        // Solicita token (com escopos atualizados)
+// Solicita token (com escopos atualizados) — usa clientId válido
 const tokenClient = google.accounts.oauth2.initTokenClient({
-  client_id: DRIVE_CLIENT_ID,
+  client_id: clientId,
   scope: DRIVE_SCOPE,
-  prompt: 'consent' // força consentimento se o escopo mudou (ex.: drive.readonly)
+  prompt: 'consent'
 });
 
 const accessToken = await new Promise((res, rej)=>{
